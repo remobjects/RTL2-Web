@@ -26,6 +26,11 @@ type
       fContentTemplates[aName] := aBuilder;
     end;
 
+    method RenderControl(__Container: RemObjects.Elements.Web.Control); virtual;
+    begin
+
+    end;
+
   private
     fContentTemplates := new Dictionary<String, CompiledTemplateBuilder>;
   end;
@@ -38,6 +43,8 @@ type
     property Page: Page;
     property Title: String;
     property Master: MasterPage;
+
+    property Head: PageHead;
   end;
 
   Master = public class(Page)  // ??
@@ -48,6 +55,11 @@ type
   MasterPage = public class(Page)
   public
 
+  end;
+
+  PageHead = public class
+  public
+    property Title: String;
   end;
 
 
@@ -69,14 +81,6 @@ type
     property Response: WebResponse; readonly;
     property Session: WebSessionState;
     property Server: WebServer;
-  end;
-
-  WebServer = public class
-  public
-    method Transfer(aPath: String);
-    begin
-
-    end;
   end;
 
   WebSessionState = public class
@@ -131,6 +135,17 @@ type
 
   private
     fBuildTemplateMethod: BuildTemplateMethod;
+  end;
+
+  Application = public static class
+  public
+    property Values[aName: String]: Object read nil write nil; default;
+    property Keys: sequence of String read nil;
+
+    method RemoveAll;
+    begin
+
+    end;
   end;
 
 

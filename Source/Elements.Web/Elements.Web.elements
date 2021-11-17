@@ -38,7 +38,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="RemObjects.InternetPack">
-      <HintPath>\Users\mh\Code\RemObjects\internetpack\bin\RemObjects.InternetPack.dll</HintPath>
+      <HintPath>..\..\..\RemObjects\internetpack\bin\RemObjects.InternetPack.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>

@@ -30,6 +30,7 @@ type
 
   System.Web.UI.ParseChildrenAttribute = public class(Attribute)
   public
+    constructor(aParseChildren: Boolean); empty;
     constructor(aParseChildren: Boolean; aName: String); empty;
   end;
 
