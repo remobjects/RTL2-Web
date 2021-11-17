@@ -18,8 +18,10 @@ type
     property Response: WebResponse read Context.Response;
     property Session: WebSessionState read Context.Session;
 
+    property ID: String;
     property Visible: Boolean;
-    property Page: Page;
+    property Page: Page read assembly write;
+    property Server: WebServer read assembly write;
 
     property ContentTemplates: ImmutableDictionary<String, CompiledTemplateBuilder> read fContentTemplates; readonly;
     method AddContentTemplate(aName: String; aBuilder: CompiledTemplateBuilder);

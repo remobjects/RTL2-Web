@@ -54,7 +54,7 @@ type
     property PhysicalApplicationPath: String; readonly; public;
     //property UserAgent: String read HttpServerRequest.UserAgent;
     //property UserLanguages: array of String; readonly; public;
-    //property Browser: System.Web.HttpBrowserCapabilities; public;
+    property Browser: WebBrowserCapabilities; public;
     property UserHostName: String; readonly; public;
     property UserHostAddress: String; readonly; public;
     //property RawUrl: String read assembly write; public;
@@ -80,6 +80,12 @@ type
     //property ReadEntityBodyMode: System.Web.ReadEntityBodyMode; readonly; public;
     //property TimedOutToken: System.Threading.CancellationToken; readonly; public;
 
+  end;
+
+  WebBrowserCapabilities = public class
+  public
+    property Browser: String;
+    property MajorVersion: Integer;
   end;
 
 end.

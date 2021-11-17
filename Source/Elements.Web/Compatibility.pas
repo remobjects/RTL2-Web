@@ -9,6 +9,7 @@ type
   System.Web.HttpUtility = public HttpUtility;
 
   System.Web.HttpContext = public WebContext;
+  System.Web.HttpBrowserCapabilities = public WebBrowserCapabilities;
 
   System.Web.IHttpHandler = public interface
   end;

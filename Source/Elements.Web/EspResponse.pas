@@ -61,7 +61,11 @@ type
     //class method RemoveOutputCacheItem(path: String; providerName: String); public;
     //class method RemoveOutputCacheItem(path: String); public;
     //method Close; public;
-    //method BinaryWrite(buffer: array of Byte); public;
+    method BinaryWrite(buffer: array of Byte); public;
+    begin
+      HttpServerResponse.ContentStream.Write(buffer, length(buffer));
+    end;
+
     //method Pics(value: String); public;
     method AppendHeader(aName: String; aValue: String);
     begin
@@ -143,7 +147,7 @@ type
     //property IsRequestBeingRedirected: Boolean read assembly write; public;
     //property RedirectLocation: String; public;
     //property Output: System.IO.TextWriter; public;
-    //property OutputStream: System.IO.Stream; readonly; public;
+    property OutputStream: Stream read HttpServerResponse.ContentStream;
     //property Filter: System.IO.Stream; public;
     //property SuppressContent: Boolean; public;
     //property Status: String; public;

@@ -21,6 +21,7 @@ type
         if assigned(lPage) then begin
           Log($"{e.Request.Path} served via {lPage}");
           lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(e.Request, lPage, lUrl), new WebResponse(e.Response));
+          lPage.Server := self;
           lPage.RenderControl(nil);
           e.Response.ContentStream.Seek(0, SeekOrigin.Begin);
         end
@@ -45,6 +46,7 @@ type
         if assigned(lPage) then begin
           Log($"{e.Request.Path} error {aCode} served via {lPage}");
           lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(e.Request, lPage, lUrl), new WebResponse(e.Response));
+          lPage.Server := self;
           lPage.RenderControl(nil);
           e.Response.ContentStream.Seek(0, SeekOrigin.Begin);
           exit true;
