@@ -66,9 +66,9 @@ type
     property QueryString: String read HttpServerRequest.QueryString.ToString;
     property Form[aValue: String]: String read ""; {$HINT TODO}
     property Form: String read ""; {$HINT TODO}
-    //property Headers: System.Collections.Specialized.NameValueCollection; readonly; public;
+    property Headers[aValue: String]: String read HttpServerRequest.Header[aValue].Value; {$HINT TODO}
     //property Unvalidated: System.Web.UnvalidatedRequestValues; readonly; public;
-    property ServerVariables[aValue: String]: String read HttpServerRequest.Header[aValue].Value; {$HINT TODO}
+    property ServerVariables[aValue: String]: String read ""; {$HINT TODO}
     property Cookies: ImmutableWebCookieCollection; readonly; public;
     //property Files: System.Web.HttpFileCollection; readonly; public;
     property InputStream: Stream read HttpServerRequest.ContentStream;

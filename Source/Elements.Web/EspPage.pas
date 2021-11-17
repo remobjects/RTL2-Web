@@ -19,6 +19,7 @@ type
     property Session: WebSessionState read Context.Session;
 
     property Visible: Boolean;
+    property Page: Page;
 
     property ContentTemplates: ImmutableDictionary<String, CompiledTemplateBuilder> read fContentTemplates; readonly;
     method AddContentTemplate(aName: String; aBuilder: CompiledTemplateBuilder);
@@ -40,7 +41,6 @@ type
 
   Page = public class(UserControl)
   public
-    property Page: Page;
     property Title: String;
     property Master: MasterPage;
 
