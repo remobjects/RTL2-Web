@@ -7,7 +7,6 @@
     <OutputType>Library</OutputType>
     <AssemblyName>Elements.Web</AssemblyName>
     <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
-    <TargetFramework>.NETFramework4.5</TargetFramework>
     <DefaultUses>RemObjects.Elements.RTL</DefaultUses>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -25,7 +24,15 @@
     <CpuType>anycpu</CpuType>
     <EnableUnmanagedDebugging>False</EnableUnmanagedDebugging>
   </PropertyGroup>
-  <ItemGroup>
+  <PropertyGroup Condition=" '$(Target)' == 'Echoes.Classic' ">
+  	<Mode>Echoes</Mode>
+    <TargetFramework>.NETFramework4.5</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Target)' == 'Echoes.Standard' ">
+  	<Mode>Echoes</Mode>
+    <TargetFramework>.NETStandard2.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup Condition=" '$(Target)' == 'Echoes.Classic' ">
     <Reference Include="mscorlib" />
     <Reference Include="System" />
     <Reference Include="System.Core">
@@ -39,6 +46,18 @@
     </Reference>
     <Reference Include="RemObjects.InternetPack">
       <HintPath>..\..\..\RemObjects\internetpack\bin\RemObjects.InternetPack.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup Condition=" '$(Target)' == 'Echoes.Standard' ">
+    <Reference Include="Elements">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Echoes">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="RemObjects.InternetPack">
+      <HintPath>..\..\..\RemObjects\internetpack\bin\NETStandard2.0\RemObjects.InternetPack.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>
@@ -57,5 +76,5 @@
     <Compile Include="Compatibility.pas" />
     <Compile Include="Compatibility.HttpUtility.pas" />
   </ItemGroup>
-  <Import Project="$(MSBuildExtensionsPath)\RemObjects Software\Elements\RemObjects.Elements.Echoes.targets" />
+  <Import Project="$(MSBuildExtensionsPath)\RemObjects Software\Elements\RemObjects.Elements.targets" />
 </Project>
