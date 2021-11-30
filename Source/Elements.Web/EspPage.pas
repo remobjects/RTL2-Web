@@ -20,8 +20,8 @@ type
 
     property ID: String;
     property Visible: Boolean;
-    property Page: Page read assembly write;
-    property Server: WebServer read assembly write;
+    property Page: Page read Context.Page;
+    property Server: WebServerForContext read Context.Server;
 
     property ContentTemplates: ImmutableDictionary<String, CompiledTemplateBuilder> read fContentTemplates; readonly;
     method AddContentTemplate(aName: String; aBuilder: CompiledTemplateBuilder);
@@ -43,10 +43,11 @@ type
 
   Page = public class(UserControl)
   public
-    property Title: String;
+    property Header: WebPageHeader;
+    property Title: String read Header.Title write Header.Title;
     property Master: MasterPage;
 
-    property Head: PageHead;
+    property Head: WebPageHeader read Header; {$HINT really?}
   end;
 
   Master = public class(Page)  // ??
@@ -59,7 +60,7 @@ type
 
   end;
 
-  PageHead = public class
+  WebPageHeader = public class
   public
     property Title: String;
   end;
@@ -77,12 +78,14 @@ type
     begin
       Request := aRequest;
       Response := aResponse;
+      Session := new WebSessionState;
     end;
 
+    property Page: Page read Request.Page;
     property Request: WebRequest; readonly;
     property Response: WebResponse; readonly;
     property Session: WebSessionState;
-    property Server: WebServer;
+    property Server: WebServerForContext;
   end;
 
   WebSessionState = public class
@@ -92,6 +95,14 @@ type
     begin
 
     end;
+
+  assembly
+
+    //constructor(aRequest: WebRequest; aResponse: WebResponse);
+    //begin
+
+    //end;
+
   end;
 
   WebCookie = public class

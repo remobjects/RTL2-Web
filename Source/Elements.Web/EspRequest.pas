@@ -11,6 +11,8 @@ type
       HttpServerRequest := aRequest;
       Page := aPage;
       Url := aUrl;
+
+      ServerVariables := new Dictionary<String,String>;
     end;
 
     property HttpServerRequest: HttpServerRequest; readonly;
@@ -65,10 +67,10 @@ type
     property QueryString[aValue: String]: String read HttpServerRequest.QueryString[aValue];
     property QueryString: String read HttpServerRequest.QueryString.ToString;
     property Form[aValue: String]: String read ""; {$HINT TODO}
-    property Form: String read ""; {$HINT TODO}
+    property Form: ImmutableDictionary<String,String> read nil; {$HINT TODO}
     property Headers[aValue: String]: String read HttpServerRequest.Header[aValue].Value; {$HINT TODO}
     //property Unvalidated: System.Web.UnvalidatedRequestValues; readonly; public;
-    property ServerVariables[aValue: String]: String read ""; {$HINT TODO}
+    property ServerVariables: ImmutableDictionary<String,String>; readonly;
     property Cookies: ImmutableWebCookieCollection; readonly; public;
     //property Files: System.Web.HttpFileCollection; readonly; public;
     property InputStream: Stream read HttpServerRequest.ContentStream;

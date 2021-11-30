@@ -14,6 +14,16 @@ type
       result := Url.RemovePercentEncodingsFromPath(aString);
     end;
 
+    method HtmlEncode(aString: nullable String): nullable String;
+    begin
+      {$WARNING Not implemented}
+    end;
+
+    method HtmlDecode(aString: nullable String): nullable String;
+    begin
+      {$WARNING Not implemented}
+    end;
+
   end;
 
 end.

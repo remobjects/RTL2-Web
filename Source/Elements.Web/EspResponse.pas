@@ -19,10 +19,12 @@ type
     //
     //
 
-    method &Write(aString: String);
+    method &Write(aString: nullable String);
     begin
-      var lBytes := Encoding.GetBytes(aString) includeBOM(false);
-      HttpServerResponse.ContentStream.Write(lBytes, length(lBytes));
+      if assigned(aString) then begin
+        var lBytes := Encoding.GetBytes(aString) includeBOM(false);
+        HttpServerResponse.ContentStream.Write(lBytes, length(lBytes));
+      end;
       //HttpServerResponse.ContentStream.Flush;
       //HttpServerResponse.ContentString := HttpServerResponse.ContentString+aString;
     end;
@@ -78,9 +80,15 @@ type
     //begin
       //HttpServerResponse.Header.
     //end;
-    //method ClearContent; public;
+
+    method ClearContent;
+    begin
+      HttpServerResponse.ContentStream := new MemoryStream;
+    end;
+
     method Clear;
     begin
+      // nedds to clear more? Cookies & co maybe?
       HttpServerResponse.ContentStream := new MemoryStream;
     end;
 
