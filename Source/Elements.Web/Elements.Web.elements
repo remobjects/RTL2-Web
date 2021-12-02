@@ -25,11 +25,11 @@
     <EnableUnmanagedDebugging>False</EnableUnmanagedDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Target)' == 'Echoes.Classic' ">
-  	<Mode>Echoes</Mode>
+    <Mode>Echoes</Mode>
     <TargetFramework>.NETFramework4.5</TargetFramework>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Target)' == 'Echoes.Standard' ">
-  	<Mode>Echoes</Mode>
+    <Mode>Echoes</Mode>
     <TargetFramework>.NETStandard2.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup Condition=" '$(Target)' == 'Echoes.Classic' ">

@@ -37,7 +37,22 @@ type
             if assigned(lResourceName) then begin
               //var lResourcePath := new System.Uri('pack://application:,,,/MyImage.png');
               //var lBitmap := new BitmapImage(lResourcePath);
-              Log($"{e.Request.Path} serves as resource {lResourceName}");
+              Log($"{e.Request.Path} served as resource {lResourceName}");
+
+              var lAssembly := System.Reflection.Assembly.GetEntryAssembly;
+              var lResourceContainerName := lAssembly.GetName().Name + '.g';
+              var lResourceManager := new System.Resources.ResourceManager(lResourceContainerName, lAssembly);
+              //var lResourceSet := lResourceManager.GetResourceSet(System.Globalization.CultureInfo.CurrentCulture, true, true);
+              //for each r: System.Collections.DictionaryEntry in lResourceSet do
+                //writeLn($"r.Key {r.Key}");
+
+              // needs newer RTL2
+              //e.Response.ContentStream := new WrappedPlatformStream(lResourceManager.GetStream(lResourceName));
+              var lStream := lResourceManager.GetStream(lResourceName);
+              var lBytes := new Byte[lStream.Length];
+              lStream.Read(lBytes, 0, lStream.Length);
+              e.Response.ContentBytes := lBytes;
+
             end
             else begin
               Log($"{e.Request.Path} 404");
@@ -76,6 +91,8 @@ type
 
     property PageFactory: WebPageFactory;
     property ErrorPaths := new Dictionary<Integer,String>;
+
+    property Port: Integer read fServer.Port;
 
   private
 
