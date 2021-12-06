@@ -17,6 +17,13 @@ type
   System.Web.SessionState.IRequiresSessionState = public interface
   end;
 
+  {$IF NOT ECHOES}
+  RemObjects.Elements.System.EventArgs = public class
+  end;
+  {$ENDIF}
+
+  System.Configuration.Dummy = public Int32;
+
   System.Web.Security.Dummy = public Int32;
   //System.Web.SessionState.Dummy = public Int32;
   //System.Web.UI.Dummy = public Int32;

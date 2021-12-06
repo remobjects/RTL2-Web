@@ -28,7 +28,7 @@ type
           var lRedirect := PageFactory:FindRedirectForPath(e.Request.Path);
           if assigned(lRedirect) then begin
             Log($"{e.Request.Path} redirect to {lRedirect}");
-            e.Response.HttpCode := System.Net.HttpStatusCode.MovedPermanently;
+            e.Response.HttpCode := {$IF ECHOES}System.Net.HttpStatusCode.MovedPermanently{$ELSE}RemObjects.InternetPack.HttpStatusCode.MovedPermanently{$ENDIF};
             e.Response.Header.SetHeaderValue("Location", lRedirect);
             e.Response.ContentString := $"<head><title>Document Moved</title></head><body><h1>Object Moved</h1>This document may be found <a HREF=""{lRedirect}"">here</a></body>";
           end
@@ -39,25 +39,27 @@ type
               //var lBitmap := new BitmapImage(lResourcePath);
               Log($"{e.Request.Path} served as resource {lResourceName}");
 
-              var lAssembly := System.Reflection.Assembly.GetEntryAssembly;
-              var lResourceContainerName := lAssembly.GetName().Name + '.g';
-              var lResourceManager := new System.Resources.ResourceManager(lResourceContainerName, lAssembly);
-              //var lResourceSet := lResourceManager.GetResourceSet(System.Globalization.CultureInfo.CurrentCulture, true, true);
-              //for each r: System.Collections.DictionaryEntry in lResourceSet do
-                //writeLn($"r.Key {r.Key}");
+              if defined("ECHOES") then begin
+                var lAssembly := System.Reflection.Assembly.GetEntryAssembly;
+                var lResourceContainerName := lAssembly.GetName().Name + '.g';
+                var lResourceManager := new System.Resources.ResourceManager(lResourceContainerName, lAssembly);
+                //var lResourceSet := lResourceManager.GetResourceSet(System.Globalization.CultureInfo.CurrentCulture, true, true);
+                //for each r: System.Collections.DictionaryEntry in lResourceSet do
+                  //writeLn($"r.Key {r.Key}");
 
-              // needs newer RTL2
-              //e.Response.ContentStream := new WrappedPlatformStream(lResourceManager.GetStream(lResourceName));
-              var lStream := lResourceManager.GetStream(lResourceName);
-              var lBytes := new Byte[lStream.Length];
-              lStream.Read(lBytes, 0, lStream.Length);
-              e.Response.ContentBytes := lBytes;
+                // needs newer RTL2
+                //e.Response.ContentStream := new WrappedPlatformStream(lResourceManager.GetStream(lResourceName));
+                var lStream := lResourceManager.GetStream(lResourceName);
+                var lBytes := new Byte[lStream.Length];
+                lStream.Read(lBytes, 0, lStream.Length);
+                e.Response.ContentBytes := lBytes;
+              end;
 
             end
             else begin
               Log($"{e.Request.Path} 404");
               if not RunError(e, 404) then begin
-                e.Response.HttpCode := System.Net.HttpStatusCode.NotFound;
+                e.Response.HttpCode := {$IF ECHOES}System.Net.HttpStatusCode.NotFound{$ELSE}RemObjects.InternetPack.HttpStatusCode.NotFound{$ENDIF};
                 e.Response.ContentString := $"<h1>404 Not found</h1> {e.Request.Path}";
               end;
             end;
