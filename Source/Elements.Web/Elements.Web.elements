@@ -37,6 +37,14 @@
     <Mode>Island</Mode>
     <SubMode>Darwin</SubMode>
   </PropertyGroup>
+  <PropertyGroup Condition=" '$(Target)' == 'Island.Linux' ">
+    <Mode>Island</Mode>
+    <SubMode>Linux</SubMode>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Target)' == 'Island.Windows' ">
+    <Mode>Island</Mode>
+    <SubMode>Windows</SubMode>
+  </PropertyGroup>
   <ItemGroup Condition=" '$(Target)' == 'Echoes.Classic' ">
     <Reference Include="mscorlib" />
     <Reference Include="System" />
@@ -73,11 +81,50 @@
     <Reference Include="Island">
       <Private>True</Private>
     </Reference>
-    <Reference Include="Foundation">
+    <Reference Include="gc">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="rtl">
       <Private>True</Private>
     </Reference>
     <Reference Include="RemObjects.InternetPack">
-      <HintPath>..\..\..\RemObjects\internetpack\Source\bin\Debug\macOS\arm64\InternetPack.fx</HintPath>
+      <HintPath>..\..\..\RemObjects\internetpack\Bin\macOS\arm64\InternetPack.fx</HintPath>
+      <Private>True</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup Condition=" '$(Target)' == 'Island.Linux' ">
+    <Reference Include="Elements">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Island">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="gc">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="rtl">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="RemObjects.InternetPack">
+      <HintPath>..\..\..\RemObjects\internetpack\Bin\Ubuntu\x86_64\InternetPack.fx</HintPath>
+      <Private>True</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup Condition=" '$(Target)' == 'Island.Windows' ">
+    <Reference Include="Elements">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Island">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="gc">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="rtl">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="RemObjects.InternetPack">
+      <HintPath>..\..\..\RemObjects\internetpack\Bin\Windows\x86_64\InternetPack.fx</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>
