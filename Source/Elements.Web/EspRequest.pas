@@ -6,20 +6,35 @@ uses
 type
   WebRequest = public class
   public
+
     constructor(aRequest: HttpServerRequest; aPage: Page; aUrl: Url);
     begin
       HttpServerRequest := aRequest;
       Page := aPage;
       Url := aUrl;
 
-      ServerVariables := new Dictionary<String,String>;
+      fServerVariables := new Dictionary<String,String>;
+      fServerVariables["HTTP_USER_AGENT"] := UserAgent;
+
+
+      fServerVariables["HTTP_ACCEPT"] := aRequest.Header["Accept"]:Value;
+      fServerVariables["HTTP_ACCEPT_LANGUAGE"] := aRequest.Header["Accept-Language"]:Value;
+      fServerVariables["HTTP_COOKIE"] := aRequest.Header["Cookie"]:Value;
+      fServerVariables["HTTP_REFERER"] := aRequest.Header["Reeferer"]:Value;
+      fServerVariables["QUERY_STRING"] := QueryString.ToString;
+      fServerVariables["REQUEST_METHOD"] := aRequest.Header.RequestType;
+
+      Cookies := new ImmutableWebCookieCollection(aRequest.Header["Cookie"]:Value);
+      Browser := new WebBrowserCapabilities(UserAgent);
     end;
+
 
     property HttpServerRequest: HttpServerRequest; readonly;
     property Page: Page; readonly;
 
-
-
+    //
+    // From System.Web.Request
+    //
 
     //method BinaryRead(count: Integer): array of Byte; public;
     //method ValidateInput; public;
@@ -54,7 +69,7 @@ type
     //property PhysicalPath: String read Page.AbsolutePath
     //property ApplicationPath: String; readonly; public;
     property PhysicalApplicationPath: String; readonly; public;
-    //property UserAgent: String read HttpServerRequest.UserAgent;
+    property UserAgent: String read HttpServerRequest.Header["User-Agent"]:Value;
     //property UserLanguages: array of String; readonly; public;
     property Browser: WebBrowserCapabilities; public;
     property UserHostName: String; readonly; public;
@@ -70,7 +85,7 @@ type
     property Form: ImmutableDictionary<String,String> read nil; {$HINT TODO}
     property Headers[aValue: String]: String read HttpServerRequest.Header[aValue].Value; {$HINT TODO}
     //property Unvalidated: System.Web.UnvalidatedRequestValues; readonly; public;
-    property ServerVariables: ImmutableDictionary<String,String>; readonly;
+    property ServerVariables: ImmutableDictionary<String,String> read fServerVariables;
     property Cookies: ImmutableWebCookieCollection; readonly; public;
     //property Files: System.Web.HttpFileCollection; readonly; public;
     property InputStream: Stream read HttpServerRequest.ContentStream;
@@ -82,12 +97,23 @@ type
     //property ReadEntityBodyMode: System.Web.ReadEntityBodyMode; readonly; public;
     //property TimedOutToken: System.Threading.CancellationToken; readonly; public;
 
+  private
+    fServerVariables: Dictionary<String,String>;
   end;
 
   WebBrowserCapabilities = public class
   public
-    property Browser: String;
-    property MajorVersion: Integer;
+    property Browser: String; readonly;
+    property MajorVersion: Integer; readonly;
+
+  assembly
+
+    constructor(aUserAgent: nullable String);
+    begin
+      Browser := aUserAgent;
+
+    end;
+
   end;
 
 end.

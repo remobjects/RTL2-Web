@@ -118,6 +118,14 @@ type
 
     property Cookies[aName: String]: WebCookie read nil; default;
 
+  assembly
+
+    constructor(aCookieHeader: nullable String);
+    begin
+      //eg: // Cookie: _ga=GA1.1.1318372872.1638279229
+
+    end;
+
   end;
 
   WebCookieCollection = public class(ImmutableWebCookieCollection)

@@ -8,6 +8,7 @@
     <AssemblyName>Elements.Web</AssemblyName>
     <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
     <DefaultUses>RemObjects.Elements.RTL</DefaultUses>
+    <OutputPathUsesSDKNames>True</OutputPathUsesSDKNames>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <Optimize>False</Optimize>

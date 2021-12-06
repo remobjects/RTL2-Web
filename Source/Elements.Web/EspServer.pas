@@ -131,7 +131,7 @@ type
   public
     method FindClassForPath(aPath: not nullable String): nullable Page; abstract;
     method FindRedirectForPath(aPath: not nullable String): nullable String; abstract;
-    method FindResourcesForPath(aPath: not nullable String): nullable String; abstract;
+    method FindResourcesForPath(aPath: not nullable String): nullable String; virtual; empty;
   end;
 
 end.
