@@ -28,7 +28,7 @@ type
           var lRedirect := PageFactory:FindRedirectForPath(e.Request.Path);
           if assigned(lRedirect) then begin
             Log($"{e.Request.Path} redirect to {lRedirect}");
-            e.Response.HttpCode := {$IF ECHOES}System.Net.HttpStatusCode.MovedPermanently{$ELSE}RemObjects.InternetPack.HttpStatusCode.MovedPermanently{$ENDIF};
+            e.Response.HttpCode := RemObjects.InternetPack.HttpStatusCode.MovedPermanently;
             e.Response.Header.SetHeaderValue("Location", lRedirect);
             e.Response.ContentString := $"<head><title>Document Moved</title></head><body><h1>Object Moved</h1>This document may be found <a HREF=""{lRedirect}"">here</a></body>";
           end
@@ -59,7 +59,7 @@ type
             else begin
               Log($"{e.Request.Path} 404");
               if not RunError(e, 404) then begin
-                e.Response.HttpCode := {$IF ECHOES}System.Net.HttpStatusCode.NotFound{$ELSE}RemObjects.InternetPack.HttpStatusCode.NotFound{$ENDIF};
+                e.Response.HttpCode := RemObjects.InternetPack.HttpStatusCode.NotFound;
                 e.Response.ContentString := $"<h1>404 Not found</h1> {e.Request.Path}";
               end;
             end;
