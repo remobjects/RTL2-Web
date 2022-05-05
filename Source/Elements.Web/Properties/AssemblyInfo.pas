@@ -23,6 +23,6 @@ uses
 [assembly: AssemblyKeyFile('')]
 [assembly: AssemblyKeyName('')]
 
-{$ENDIF
+{$ENDIF}
 
 end.

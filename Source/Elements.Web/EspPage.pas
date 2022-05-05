@@ -44,7 +44,7 @@ type
   Page = public class(UserControl)
   public
     property Header: WebPageHeader;
-    property Title: String read Header.Title write Header.Title;
+    property Title: String read Header:Title write Header:Title;
     property Master: MasterPage;
 
     property Head: WebPageHeader read Header; {$HINT really?}

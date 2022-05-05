@@ -120,6 +120,8 @@ type
       {$WARNING Not implemented}
     end;
 
+    property ScriptTimeout: Integer;
+
   assembly
 
     constructor(aWebServer: WebServer);

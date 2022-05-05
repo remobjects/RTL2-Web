@@ -58,7 +58,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="RemObjects.InternetPack">
-      <HintPath>..\..\..\RemObjects\internetpack\bin\RemObjects.InternetPack.dll</HintPath>
+      <HintPath>..\..\..\RemObjects\internetpack\Bin\Echoes\NET\RemObjects.InternetPack.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>
@@ -70,7 +70,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="RemObjects.InternetPack">
-      <HintPath>..\..\..\RemObjects\internetpack\bin\NETStandard2.0\RemObjects.InternetPack.dll</HintPath>
+      <HintPath>..\..\..\RemObjects\internetpack\Bin\Echoes\NETStandard2.0\RemObjects.InternetPack.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>

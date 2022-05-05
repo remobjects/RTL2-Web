@@ -74,7 +74,7 @@ type
     property Browser: WebBrowserCapabilities; public;
     property UserHostName: String; readonly; public;
     property UserHostAddress: String; readonly; public;
-    //property RawUrl: String read assembly write; public;
+    property RawUrl: String read Url.ToAbsoluteString; public; // for now
     property Url: Url; readonly; public;
     property UrlReferrer: Url; readonly; public;
     //property &Params: System.Collections.Specialized.NameValueCollection; readonly; public;
