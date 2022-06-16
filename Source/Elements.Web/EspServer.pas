@@ -29,6 +29,7 @@ type
           lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lPage, lUrl), new WebResponse(aEventArgs.Response));
           lPage.OnLoad(new EventArgs);
           lPage.RenderControl(nil);
+          lPage.OnUnLoad(new EventArgs);
           aEventArgs.Response.ContentStream.Seek(0, SeekOrigin.Begin);
         end
         else begin

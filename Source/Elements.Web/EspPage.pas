@@ -38,11 +38,18 @@ type
     end;
 
     event Load: EventHandler;
+    event UnLoad: EventHandler;
 
     method OnLoad(e: EventArgs); public; virtual;
     begin
       if assigned(Load) then
         Load(self, e);
+    end;
+
+    method OnUnLoad(e: EventArgs); public; virtual;
+    begin
+      if assigned(UnLoad) then
+        UnLoad(self, e);
     end;
 
   protected
@@ -56,7 +63,17 @@ type
         //if p > 0 then begin
           //var lName := m.Name.Substring(p+1);
           case caseInsensitive(m.Name) of
+            //"Page_PreInit": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+            //"Page_Init": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+            //"Page_InitComplete": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+            //"Page_PreLoad": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
             "Page_Load": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+            //"Page_LoadComplete": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+            //"Page_PreRender": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+            //"Page_PreRenderComplete": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+            //"Page_SaveStateComplete": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+            //"Page_Render": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+            "Page_UnLoad": UnLoad += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
           end;
         //end;
       end;
