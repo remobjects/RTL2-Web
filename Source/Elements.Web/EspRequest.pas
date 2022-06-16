@@ -26,6 +26,9 @@ type
       fServerVariables["QUERY_STRING"] := QueryString.ToString;
       fServerVariables["REQUEST_METHOD"] := aRequest.Header.RequestType;
 
+      fServerVariables["SERVER_NAME"] := aUrl.Host; // always same as HTTP_HOST
+      fServerVariables["SERVER_SOFTWARE"] := $"RemObjects Elements Server Pages {Environment.Platform}";
+
       Cookies := new ImmutableWebCookieCollection(aRequest.Header["Cookie"]:Value);
       Browser := new WebBrowserCapabilities(UserAgent);
     end;
