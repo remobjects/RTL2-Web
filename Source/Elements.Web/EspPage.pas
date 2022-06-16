@@ -1,7 +1,9 @@
 ﻿namespace RemObjects.Elements.Web;
 
-type
+uses
+  RemObjects.Elements.RTL.Reflection;
 
+type
   //Control = public System.Web.UI.Control;
   //Page = public System.Web.UI.Page;
   //MasterPage = public System.Web.UI.MasterPage;
@@ -32,6 +34,42 @@ type
 
     method RenderControl(__Container: RemObjects.Elements.Web.Control); virtual;
     begin
+
+    end;
+
+    event Load: EventHandler;
+
+    method OnLoad(e: EventArgs); public; virtual;
+    begin
+      if assigned(Load) then
+        Load(self, e);
+    end;
+
+  protected
+
+    method AutoEventWireup;
+    begin
+      Log($"AutoEventWireup for {typeOf(self).Name}");
+
+      for each m in typeOf(self).Methods do begin
+        //var p := m.Name.LastIndexOf("_");
+        //if p > 0 then begin
+          //var lName := m.Name.Substring(p+1);
+          case caseInsensitive(m.Name) of
+            "Page_Load": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+          end;
+        //end;
+      end;
+
+      //var lMethod := typeOf(self).GetMethod("Page_Load", System.Reflection.BindingFlags.NonPublic or System.Reflection.BindingFlags.IgnoreCase or System.Reflection.BindingFlags.FlattenHierarchy);
+        //if assigned(lMethod) and (lMethod.GetParameters.Count = 2) then begin
+          //Log($"lMethod {lMethod}");
+          //lMethod.Invoke(self, [self, e]);
+        //end
+        //else begin
+          //Log($"No Page_Load found {lMethod}");
+        //end;
+      //end;
 
     end;
 

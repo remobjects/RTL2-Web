@@ -24,9 +24,10 @@ type
       try
         var lPage := PageFactory:FindClassForPath(aEventArgs.Request.Path);
         if assigned(lPage) then begin
-          var lUrl := Url.UrlWithComponents("http", "lcoalhost", 8000, aEventArgs.Request.Path, nil, nil, nil);
+          var lUrl := Url.UrlWithComponents("http", "localhost", 8000, aEventArgs.Request.Path, nil, nil, nil);
           Log($"{aEventArgs.Request.Path} served via {lPage}");
           lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lPage, lUrl), new WebResponse(aEventArgs.Response));
+          lPage.OnLoad(new EventArgs);
           lPage.RenderControl(nil);
           aEventArgs.Response.ContentStream.Seek(0, SeekOrigin.Begin);
         end
@@ -41,23 +42,16 @@ type
           else begin
             var lResourceName := PageFactory:FindResourcesForPath(aEventArgs.Request.Path);
             if assigned(lResourceName) then begin
-              //var lResourcePath := new System.Uri('pack://application:,,,/MyImage.png');
-              //var lBitmap := new BitmapImage(lResourcePath);
               if defined("ECHOES") then begin
                 var lAssembly := System.Reflection.Assembly.GetEntryAssembly;
-                var lResourceContainerName := lAssembly.GetName().Name + '.g';
-                var lResourceManager := new System.Resources.ResourceManager(lResourceContainerName, lAssembly);
 
-                var lStream := lResourceManager.GetStream(lResourceName);
+                var lStream := lAssembly.GetManifestResourceStream(lResourceName);
                 if assigned(lStream) then begin
                   Log($"{aEventArgs.Request.Path} served as resource {lResourceName}");
-                  aEventArgs.Response.ContentStream := new WrappedPlatformStream(lResourceManager.GetStream(lResourceName));
+                  aEventArgs.Response.ContentStream := new WrappedPlatformStream(lStream);
                 end
                 else begin
                   Log($"{aEventArgs.Request.Path} resource 404. avilable resources are:");
-                  var lResourceSet := lResourceManager.GetResourceSet(System.Globalization.CultureInfo.CurrentCulture, true, true);
-                  for each r: System.Collections.DictionaryEntry in lResourceSet do
-                    writeLn($"   {r.Key}");
                   aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
                   //aEventArgs.Response.Header["Content-Type"] := "text/html";
                   aEventArgs.Response.HttpCode := HttpStatusCode.NotFound;
@@ -91,7 +85,7 @@ type
     begin
       var lPath := ErrorPaths[aCode];
       if assigned(lPath) then begin
-        var lUrl := Url.UrlWithComponents("http", "lcoalhost", 8000, lPath, nil, nil, nil);
+        var lUrl := Url.UrlWithComponents("http", "localhost", 8000, lPath, nil, nil, nil);
         var lPage := PageFactory:FindClassForPath(e.Request.Path);
         if assigned(lPage) then begin
           Log($"{e.Request.Path} error {aCode} served via {lPage}");
