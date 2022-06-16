@@ -112,8 +112,17 @@ type
     //method RedirectToRoutePermanent(routeValues: System.Web.Routing.RouteValueDictionary); public;
     //method RedirectToRoutePermanent(routeName: String); public;
     //method RedirectToRoutePermanent(routeValues: Object); public;
-    //method RedirectPermanent(url: String; endResponse: Boolean); public;
-    //method RedirectPermanent(url: String); public;
+
+    method RedirectPermanent(aUrl: String; aShouldEndResponse: Boolean);
+    begin
+
+    end;
+
+    method RedirectPermanent(aUrl: String);
+    begin
+      RedirectPermanent(aUrl, true);
+    end;
+
     //method &Write(buffer: array of Char; &index: Integer; count: Integer); public;
     //method &Write(ch: Char); public;
     //method &Write(obj: Object); public;
@@ -123,8 +132,21 @@ type
     //method WriteFile(filename: String; offset: Int64; size: Int64); public;
     //method WriteFile(filename: String; readIntoMemory: Boolean); public;
     //method WriteFile(filename: String); public;
-    //method TransmitFile(filename: String; offset: Int64; length: Int64); public;
-    //method TransmitFile(filename: String); public;
+
+    //method TransmitFile(aFileName: String; aOffset: Int64; aLength: Int64); public;
+    //begin
+      //using s := new FileStream(aFileName, FileOpenMode.ReadOnly) do
+        //HttpServerResponse.ContentStream.Write(s, aOffset, aLength);
+    //end;
+
+    method TransmitFile(aFileName: String); public;
+    begin
+      var b := File.ReadBytes(aFileName);
+      HttpServerResponse.ContentStream.Write(b, 0, length(b));
+      //using s := new FileStream(aFileName, FileOpenMode.ReadOnly) do
+        //HttpServerResponse.ContentStream.Write(s);
+    end;
+
     method AddHeader(aName: String; aValue: String);
     begin
       HttpServerResponse.Header.SetHeaderValue(aName, aValue);

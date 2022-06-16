@@ -21,6 +21,7 @@ type
     property ID: String;
     property Visible: Boolean;
     property Page: Page read Context.Page;
+    property Parent: Control; // todo
     property Server: WebServerForContext read Context.Server;
 
     property ContentTemplates: ImmutableDictionary<String, CompiledTemplateBuilder> read fContentTemplates; readonly;
@@ -90,13 +91,29 @@ type
 
   WebSessionState = public class
   public
-    property Values[aName: String]: Object read nil write nil; default; {$HINT TODO}
+    property Item[aName: not nullable String]: nullable Object read fSessionState[aName] write SetSessionState; default;
+
     method Abandon;
     begin
 
     end;
 
+    method Clear;
+    begin
+      fSessionState.RemoveAll;
+    end;
+
   assembly
+
+  private
+
+    fSessionState := new Dictionary<String,Object>;
+
+    method SetSessionState(aName: not nullable String; aValue: nullable Object);
+    begin
+      fSessionState[aName] := aValue;
+      // todo: persist?
+    end;
 
     //constructor(aRequest: WebRequest; aResponse: WebResponse);
     //begin

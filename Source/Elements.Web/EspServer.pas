@@ -1,6 +1,7 @@
 ﻿namespace RemObjects.Elements.Web;
 
 uses
+  RemObjects.InternetPack,
   RemObjects.InternetPack.Http,
   RemObjects.Elements.Web;
 
@@ -11,63 +12,79 @@ type
     method Start;
     begin
       fServer := new HttpServer();
-      fServer.Port := 8000;
+      fServer.Port := 8001;
       fServer.KeepAlive := true;
       fServer.CloseConnectionsOnShutdown := true;
+      fServer.HttpRequest += HandleEspRequest;
+      fServer.Open();
+    end;
 
-      fServer.HttpRequest += (sender, e) -> begin
-        var lPage := PageFactory:FindClassForPath(e.Request.Path);
+    method HandleEspRequest(aSender: Object; aEventArgs: HttpRequestEventArgs);
+    begin
+      try
+        var lPage := PageFactory:FindClassForPath(aEventArgs.Request.Path);
         if assigned(lPage) then begin
-          var lUrl := Url.UrlWithComponents("http", "lcoalhost", 8000, e.Request.Path, nil, nil, nil);
-          Log($"{e.Request.Path} served via {lPage}");
-          lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(e.Request, lPage, lUrl), new WebResponse(e.Response));
+          var lUrl := Url.UrlWithComponents("http", "lcoalhost", 8000, aEventArgs.Request.Path, nil, nil, nil);
+          Log($"{aEventArgs.Request.Path} served via {lPage}");
+          lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lPage, lUrl), new WebResponse(aEventArgs.Response));
           lPage.RenderControl(nil);
-          e.Response.ContentStream.Seek(0, SeekOrigin.Begin);
+          aEventArgs.Response.ContentStream.Seek(0, SeekOrigin.Begin);
         end
         else begin
-          var lRedirect := PageFactory:FindRedirectForPath(e.Request.Path);
+          var lRedirect := PageFactory:FindRedirectForPath(aEventArgs.Request.Path);
           if assigned(lRedirect) then begin
-            Log($"{e.Request.Path} redirect to {lRedirect}");
-            e.Response.HttpCode := RemObjects.InternetPack.HttpStatusCode.MovedPermanently;
-            e.Response.Header.SetHeaderValue("Location", lRedirect);
-            e.Response.ContentString := $"<head><title>Document Moved</title></head><body><h1>Object Moved</h1>This document may be found <a HREF=""{lRedirect}"">here</a></body>";
+            Log($"{aEventArgs.Request.Path} redirected to {lRedirect}");
+            aEventArgs.Response.HttpCode := HttpStatusCode.MovedPermanently;
+            aEventArgs.Response.Header.SetHeaderValue("Location", lRedirect);
+            aEventArgs.Response.ContentString := $"<head><title>Document Moved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a HREF=""{lRedirect}"">here</a>.</p></body>";
           end
           else begin
-            var lResourceName := PageFactory:FindResourcesForPath(e.Request.Path);
+            var lResourceName := PageFactory:FindResourcesForPath(aEventArgs.Request.Path);
             if assigned(lResourceName) then begin
               //var lResourcePath := new System.Uri('pack://application:,,,/MyImage.png');
               //var lBitmap := new BitmapImage(lResourcePath);
-              Log($"{e.Request.Path} served as resource {lResourceName}");
-
               if defined("ECHOES") then begin
                 var lAssembly := System.Reflection.Assembly.GetEntryAssembly;
                 var lResourceContainerName := lAssembly.GetName().Name + '.g';
                 var lResourceManager := new System.Resources.ResourceManager(lResourceContainerName, lAssembly);
-                //var lResourceSet := lResourceManager.GetResourceSet(System.Globalization.CultureInfo.CurrentCulture, true, true);
-                //for each r: System.Collections.DictionaryEntry in lResourceSet do
-                  //writeLn($"r.Key {r.Key}");
 
-                // needs newer RTL2
-                //e.Response.ContentStream := new WrappedPlatformStream(lResourceManager.GetStream(lResourceName));
                 var lStream := lResourceManager.GetStream(lResourceName);
-                var lBytes := new Byte[lStream.Length];
-                lStream.Read(lBytes, 0, lStream.Length);
-                e.Response.ContentBytes := lBytes;
+                if assigned(lStream) then begin
+                  Log($"{aEventArgs.Request.Path} served as resource {lResourceName}");
+                  aEventArgs.Response.ContentStream := new WrappedPlatformStream(lResourceManager.GetStream(lResourceName));
+                end
+                else begin
+                  Log($"{aEventArgs.Request.Path} resource 404. avilable resources are:");
+                  var lResourceSet := lResourceManager.GetResourceSet(System.Globalization.CultureInfo.CurrentCulture, true, true);
+                  for each r: System.Collections.DictionaryEntry in lResourceSet do
+                    writeLn($"   {r.Key}");
+                  aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
+                  //aEventArgs.Response.Header["Content-Type"] := "text/html";
+                  aEventArgs.Response.HttpCode := HttpStatusCode.NotFound;
+                  aEventArgs.Response.ContentString := $"<h1>404 Embedded resource Not found.</h1> <tt>{aEventArgs.Request.Path}</tt>";
+                end;
               end;
 
             end
             else begin
-              Log($"{e.Request.Path} 404");
-              if not RunError(e, 404) then begin
-                e.Response.HttpCode := RemObjects.InternetPack.HttpStatusCode.NotFound;
-                e.Response.ContentString := $"<h1>404 Not found</h1> {e.Request.Path}";
+              Log($"{aEventArgs.Request.Path} unknown path 404");
+              if not RunError(aEventArgs, 404) then begin
+                aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
+                //aEventArgs.Response.Header["Content-Type"] := "text/html";
+                aEventArgs.Response.HttpCode := HttpStatusCode.NotFound;
+                aEventArgs.Response.ContentString := $"<h1>404 Not found.</h1> <tt>{aEventArgs.Request.Path}</tt>";
               end;
             end;
           end;
         end;
+      except
+        on E: Exception do begin
+          aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
+          //aEventArgs.Response.Header["Content-Type"] := "text/html";
+          aEventArgs.Response.HttpCode := HttpStatusCode.InternalServerError;
+          aEventArgs.Response.ContentString := $"<h1>{Integer(aEventArgs.Response.HttpCode)} Internal Error.</h1> <tt>{aEventArgs.Request.Path}</tt>"+RenderException(E);
+        end;
       end;
-
-      fServer.Open();
     end;
 
     method RunError(e: HttpRequestEventArgs; aCode: Integer): Boolean;
@@ -85,6 +102,18 @@ type
         end;
       end;
     end;
+
+    method RenderException(aException: Exception): String;
+    begin
+      result := $"{EXCEPTION_STYLES}<h2>{aException.Message}</h2><p><pre>{aException.GetType.Name}
+{aException.CallStack.JoinedString("<br>")}</pre></p>";
+    end;
+
+    const EXCEPTION_STYLES = "<style>
+  pre {
+    background-color: #ffffe0;
+  }
+</style>";
 
     method Stop;
     begin

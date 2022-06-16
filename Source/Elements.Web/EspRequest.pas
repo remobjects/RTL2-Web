@@ -16,6 +16,8 @@ type
       fServerVariables := new Dictionary<String,String>;
       fServerVariables["HTTP_USER_AGENT"] := UserAgent;
 
+      fServerVariables["HTTP_HOST"] := aUrl.Host;
+      fServerVariables["HTTP_PORT"] := aUrl.Port.ToString;;
 
       fServerVariables["HTTP_ACCEPT"] := aRequest.Header["Accept"]:Value;
       fServerVariables["HTTP_ACCEPT_LANGUAGE"] := aRequest.Header["Accept-Language"]:Value;
@@ -47,7 +49,21 @@ type
     //method InsertEntityBody(buffer: array of Byte; offset: Integer; count: Integer); public;
     //method GetBufferlessInputStream(disableMaxRequestLength: Boolean): System.IO.Stream; public;
     //method GetBufferlessInputStream: System.IO.Stream; public;
-    //method GetBufferedInputStream: System.IO.Stream; public;
+    method GetBufferedInputStream: Stream; public;
+    begin
+      result := HttpServerRequest.ContentStream;
+    end;
+
+    method BodyAsString: String;
+    begin
+      result := HttpServerRequest.ContentString;
+    end;
+
+    method BodyAsBytes: array of Byte;
+    begin
+      result := HttpServerRequest.ContentBytes;
+    end;
+
     //method Abort; public;
     //property RequestContext: System.Web.Routing.RequestContext; public;
     //property IsLocal: Boolean; readonly; public;
