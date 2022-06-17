@@ -36,47 +36,55 @@ type
       &Write(new String(aChars, aIndex, aCount));
     end;
 
-    //method &Write(aChar: Char);
-    //begin
-      //&Write(aChar.ToString);
-      //HttpServerResponse.ContentStream.Write([aChar], 1);
-    //end;
+    method &Write(aChar: Char); public;
+    begin
+      Write(aChar.ToString);
+    end;
 
     method &Write(aObject: Object);
     begin
       &Write(aObject.ToString);
     end;
 
-   //method &Write(buffer: array of Char; &index: Integer; count: Integer); public;
-    //method &Write(ch: Char); public;
-    //method &Write(obj: Object); public;
-    //method &Write(s: String); public;
     //method WriteSubstitution(callback: System.Web.HttpResponseSubstitutionCallback); public;
     //method WriteFile(fileHandle: IntPtr; offset: Int64; size: Int64); public;
-    //method WriteFile(filename: String; offset: Int64; size: Int64); public;
-    //method WriteFile(filename: String; readIntoMemory: Boolean); public;
-    //method WriteFile(filename: String); public;
+    method WriteFile(aFileName: String; aOffset: Int64; aSize: Int64);
+    begin
+      var lBytes := File.ReadBytes(aFileName);
+      HttpServerResponse.ContentStream.Write(lBytes, aOffset, aSize);
+    end;
+
+    method WriteFile(aFileName: not nullable String; aShouldReadIntoMemory: Boolean); public;
+    begin
+      //if aShouldReadIntoMemory then begin
+        var lBytes := File.ReadBytes(aFileName);
+        HttpServerResponse.ContentStream.Write(lBytes);
+      //end
+      //else begin
+        //using lStream := new FileStream(aFileName, FileOpenMode.ReadOnly) do
+          //HttpServerResponse.ContentStream.Write(lStream); // H3 parameter 1 is "FileStream" should be "array of Byte"
+      //end;
+    end;
+
+    method WriteFile(aFileName: String); public;
+    begin
+      WriteFile(aFileName, false);
+    end;
 
     //method TransmitFile(aFileName: String; aOffset: Int64; aLength: Int64); public;
     //begin
-      //using s := new FileStream(aFileName, FileOpenMode.ReadOnly) do
-        //HttpServerResponse.ContentStream.Write(s, aOffset, aLength);
+      //raise new CleanlyEndResponseException
     //end;
 
     method TransmitFile(aFileName: String); public;
     begin
-      var b := File.ReadBytes(aFileName);
-      HttpServerResponse.ContentStream.Write(b, 0, length(b));
-      //using s := new FileStream(aFileName, FileOpenMode.ReadOnly) do
-        //HttpServerResponse.ContentStream.Write(s);
+      HttpServerResponse.ContentStream := new FileStream(aFileName, FileOpenMode.ReadOnly);
+      raise new CleanlyEndResponseException;
     end;
 
     //
     //
     //
-
-// System.Web, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a
-// /Users/mh/Code/Fire Support/_NETFramework/v4.5/System.Web.dll
 
     //constructor(writer: System.IO.TextWriter); public;
     //method BeginFlush(callback: AsyncCallback; state: Object): IAsyncResult; public;

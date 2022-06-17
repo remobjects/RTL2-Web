@@ -19,6 +19,7 @@ type
     property Domain: nullable String;
     property Path: nullable String;
     property Secure: Boolean;
+    property HttpOnly: Boolean;
     property Expires: DateTime;
     property Values[aName: not nullable String]: nullable String read fValues[aName] write fValues[aName]; override; default;
   end;
@@ -107,15 +108,22 @@ type
           lString.Append(lCookie.Domain.ToLowerInvariant);
         end;
 
+        lString.Append("; ");
+        lString.Append("path=");
+        lString.Append(coalesce(lCookie.Path, "/"));
+
         if assigned(lCookie.Expires) then begin
           lString.Append("; ");
           lString.Append("expires=");
           lString.Append(lCookie.Expires.ToString("ddd, dd-MMM-yyyy HH:mm:ss UTC"));
         end;
 
-        lString.Append("; ");
-        lString.Append("path=");
-        lString.Append(coalesce(lCookie.Path, "/"));
+        if lCookie.Secure then
+          lString.Append("; Secure");
+
+        if HttpOnly then
+          lString.Append("; HttpOnly");
+
       end;
 
       result := lString.ToString;
