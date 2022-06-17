@@ -25,33 +25,44 @@ type
       try
         var lObject := PageFactory:DoFindClassForPath(aEventArgs.Request.Path);
         if assigned(lObject) then begin
-          if lObject is Page then begin
-            var lPage := lObject as Page;
-            var lUrl := Url.UrlWithComponents("http", "localhost", 8000, aEventArgs.Request.Path, nil, nil, nil);
-            Log($"{aEventArgs.Request.Path} served via {lPage}");
-            lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lPage, lUrl), new WebResponse(aEventArgs.Response));
-            try
+
+          var lUrl := Url.UrlWithComponents("http", "localhost", 8000, aEventArgs.Request.Path, nil, nil, nil);
+          var lContext := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl), new WebResponse(aEventArgs.Response));
+
+          try
+
+            if lObject is Page then begin
+              var lPage := lObject as Page;
+              Log($"{aEventArgs.Request.Path} served via {lPage}");
+              lPage.Context := lContext;
+              lContext.Request.Page := lPage;
               lPage.OnLoad(new EventArgs);
               lPage.RenderControl(nil);
               lPage.OnUnLoad(new EventArgs);
-            except
-              on E: CleanlyEndResponseException do; // ignore these
-              {$IF ECHOES}
-              on E: System.Reflection.TargetInvocationException do
-                if E.InnerException is not CleanlyEndResponseException then
-                  raise;
-              {$ENDIF}
+            end
+            else if lObject is IHttpHandler then begin
+              (lObject as IHttpHandler).ProcessRequest(lContext)
+            end
+            else begin
+              aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
+              //aEventArgs.Response.Header["Content-Type"] := "text/html";
+              aEventArgs.Response.HttpCode := HttpStatusCode.InternalServerError;
+              aEventArgs.Response.ContentString := $"<h1>{Integer(aEventArgs.Response.HttpCode)} Internal Error.</h1><p>Unexpected/unsupported class {typeOf(lObject)} for path {aEventArgs.Request.Path}</p>";
             end;
-            if lPage.Context.Response.Cookies.Count > 0 then
-              lPage.Context.Response.HttpServerResponse.Header.SetHeaderValue("Set-Cookie", lPage.Context.Response.Cookies.GetCookieHeaderString);
+
+            if lContext.Response.Cookies.Count > 0 then
+              lContext.Response.HttpServerResponse.Header.SetHeaderValue("Set-Cookie", lContext.Response.Cookies.GetCookieHeaderString);
             aEventArgs.Response.ContentStream.Seek(0, SeekOrigin.Begin);
+
+          except
+            on E: CleanlyEndResponseException do; // ignore these
+            {$IF ECHOES}
+            on E: System.Reflection.TargetInvocationException do
+              if E.InnerException is not CleanlyEndResponseException then
+                raise;
+            {$ENDIF}
           end
-          else begin
-            aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
-            //aEventArgs.Response.Header["Content-Type"] := "text/html";
-            aEventArgs.Response.HttpCode := HttpStatusCode.InternalServerError;
-            aEventArgs.Response.ContentString := $"<h1>{Integer(aEventArgs.Response.HttpCode)} Internal Error.</h1><p>Unexpected/unsupported class {typeOf(lObject)} for path {aEventArgs.Request.Path}</p>";
-          end;
+
         end
         else begin
           var lRedirect := PageFactory:FindRedirectForPath(aEventArgs.Request.Path);
@@ -110,7 +121,8 @@ type
         var lUrl := Url.UrlWithComponents("http", "localhost", 8000, lPath, nil, nil, nil);
         with matching lPage := Page(PageFactory:DoFindClassForPath(e.Request.Path)) do begin
           Log($"{e.Request.Path} error {aCode} served via {lPage}");
-          lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(e.Request, lPage, lUrl), new WebResponse(e.Response));
+          lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(e.Request, lUrl), new WebResponse(e.Response));
+          lPage.Context.Request.Page := lPage;
           lPage.RenderControl(nil);
           e.Response.ContentStream.Seek(0, SeekOrigin.Begin);
           exit true;

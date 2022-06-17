@@ -12,6 +12,11 @@ type
   //CompiledTemplateBuilder = public System.Web.UI.CompiledTemplateBuilder;
   //BuildTemplateMethod = public System.Web.UI.BuildTemplateMethod;
 
+  IHttpHandler = public interface
+    method ProcessRequest(Context: WebContext);
+    property IsReusable: Boolean read false;
+  end;
+
   Control = public class
   public
 

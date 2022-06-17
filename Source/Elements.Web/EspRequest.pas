@@ -7,10 +7,9 @@ type
   WebRequest = public class
   public
 
-    constructor(aRequest: HttpServerRequest; aPage: Page; aUrl: Url);
+    constructor(aRequest: HttpServerRequest; aUrl: Url);
     begin
       HttpServerRequest := aRequest;
-      Page := aPage;
       Url := aUrl;
 
       fServerVariables := new Dictionary<String,String>;
@@ -39,7 +38,7 @@ type
 
 
     property HttpServerRequest: HttpServerRequest; readonly;
-    property Page: Page; readonly;
+    property Page: Page read assembly write;
 
     //
     // From System.Web.Request

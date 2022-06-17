@@ -11,8 +11,7 @@ type
   System.Web.HttpContext = public WebContext;
   System.Web.HttpBrowserCapabilities = public WebBrowserCapabilities;
 
-  System.Web.IHttpHandler = public interface
-  end;
+  System.Web.IHttpHandler = public IHttpHandler;
 
   System.Web.SessionState.IRequiresSessionState = public interface
   end;
