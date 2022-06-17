@@ -51,9 +51,6 @@ type
 
     constructor(aCookieHeader: nullable String);
     begin
-      //Login=UserName=mh&UserToken=$2a$11$7VcEQejDVl1WSNzTi8L3q.v4q5goR2Kut1XXXXXXXX;
-      //ASP.NET_SessionId=lwmhjy3qq44wcfq0chl0obhk;
-      //experimentation_subject_id=ImEzNzRlZTg3LWNhNDgtNGJjOC05NzMxLTYyMzAyZWY0N2Y1NyI%3D--7c3157660edd5faaffc522c4a09b280a108f84a0
       //Log($" reading CookieHeader {aCookieHeader}");
       for each c in aCookieHeader.Split(";") do begin
         var lSplit := c.SplitAtFirstOccurrenceOf("=");
@@ -82,10 +79,6 @@ type
 
     method GetCookieHeaderString: String;
     begin
-      // Set-Cookie:
-
-      // Login=UserName=mh&UserToken=$2a$11$7Sh46mgpvbN.bRUQpJGz3eoq9KwyjWfIg6PMtnIpRDR1fCqpOol52; domain=remobjects.com; expires=Sun, 17-Jul-2022 14:21:24 GMT; path=/; secure; HttpOnly
-
       var lString := new StringBuilder;
       for each k in fCookies.Keys index i do begin
 
