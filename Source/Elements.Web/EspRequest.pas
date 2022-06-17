@@ -14,23 +14,21 @@ type
 
       fServerVariables := new Dictionary<String,String>;
 
+      for each h in aRequest.Header do
+        fServerVariables[$"HTTP_{h.Name.ToUpperInvariant.Replace("-","_")}"] := h.Value;
+      // override, as Http Header has Host and Port combined
       fServerVariables["HTTP_HOST"] := aUrl.Host;
-      fServerVariables["HTTP_PORT"] := aUrl.Port.ToString;;
-      fServerVariables["HTTP_USER_AGENT"] := HttpServerRequest.Header["User-Agent"]:Value;
-
-      fServerVariables["HTTP_ACCEPT"] := aRequest.Header["Accept"]:Value;
-      fServerVariables["HTTP_ACCEPT_LANGUAGE"] := aRequest.Header["Accept-Language"]:Value;
-      //fServerVariables["HTTP_ACCEPT_ENCODING"] := aRequest.Header["Accept-Language"]:Value;
-      fServerVariables["HTTP_COOKIE"] := aRequest.Header["Cookie"]:Value;
-      fServerVariables["HTTP_REFERER"] := aRequest.Header["Reeferer"]:Value;
-      //fServerVariables["HTTP_CONTENT_LENGTH"] := aRequest.ContentLength.ToString;
+      fServerVariables["HTTP_PORT"] := aUrl.Port.ToString;
 
       fServerVariables["QUERY_STRING"] := QueryString.ToString;
       fServerVariables["REQUEST_METHOD"] := aRequest.Header.RequestType;
       fServerVariables["PATH_INFO"] := aUrl.Path;
 
       fServerVariables["SERVER_NAME"] := aUrl.Host; // always same as HTTP_HOST
-      fServerVariables["SERVER_SOFTWARE"] := $"RemObjects Elements Server Pages {Environment.Platform}";
+      fServerVariables["SERVER_SOFTWARE"] := $"RemObjects Elements Server Pages (running on {Environment.Platform})";
+
+      //for each k in fServerVariables.Keys do
+        //Log($"{k} = {fServerVariables[k]}");
 
       Cookies := new ImmutableWebCookieCollection(aRequest.Header["Cookie"]:Value);
       Browser := new WebBrowserCapabilities(UserAgent);

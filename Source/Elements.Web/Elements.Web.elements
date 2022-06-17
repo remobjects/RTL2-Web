@@ -91,6 +91,7 @@
     <Compile Include="Compatibility.HttpUtility.pas" />
     <Compile Include="EspCookies.pas" />
     <Compile Include="Exceptions.pas" />
+    <Compile Include="EspSessions.pas" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\RemObjects Software\Elements\RemObjects.Elements.targets" />
 </Project>

@@ -23,17 +23,21 @@ type
     method HandleEspRequest(aSender: Object; aEventArgs: HttpRequestEventArgs);
     begin
       try
+
         var lObject := PageFactory:DoFindClassForPath(aEventArgs.Request.Path);
         if assigned(lObject) then begin
 
-          var lUrl := Url.UrlWithComponents("http", "localhost", 8000, aEventArgs.Request.Path, nil, nil, nil);
+          //Log($"{aEventArgs.Request.Path} served via {lObject}");
+          var lHost := aEventArgs.Request.Header["Host"]:Value:SubstringToFirstOccurrenceOf(":");
+          var lPort := aEventArgs.Connection.Binding.Port;
+          var lScheme := "http"; // for now
+          var lUrl := Url.UrlWithComponents(lScheme, lHost, lPort, aEventArgs.Request.Path, nil, nil, nil);
           var lContext := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl), new WebResponse(aEventArgs.Response));
 
           try
 
             if lObject is Page then begin
               var lPage := lObject as Page;
-              Log($"{aEventArgs.Request.Path} served via {lPage}");
               lPage.Context := lContext;
               lContext.Request.Page := lPage;
               lPage.OnLoad(new EventArgs);
@@ -67,33 +71,40 @@ type
         else begin
           var lRedirect := PageFactory:FindRedirectForPath(aEventArgs.Request.Path);
           if assigned(lRedirect) then begin
+
             Log($"{aEventArgs.Request.Path} redirected to {lRedirect}");
             aEventArgs.Response.HttpCode := HttpStatusCode.MovedPermanently;
             aEventArgs.Response.Header.SetHeaderValue("Location", lRedirect);
             aEventArgs.Response.ContentString := $"<head><title>Document Moved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a hrwf=""{lRedirect}"">here</a>.</p></body>";
+
           end
           else begin
             var lResourceName := PageFactory:FindResourcesForPath(aEventArgs.Request.Path);
             if assigned(lResourceName) then begin
+
               if defined("ECHOES") then begin
                 var lAssembly := System.Reflection.Assembly.GetEntryAssembly;
 
                 var lStream := lAssembly.GetManifestResourceStream(lResourceName);
                 if assigned(lStream) then begin
-                  Log($"{aEventArgs.Request.Path} served as resource {lResourceName}");
+                  //Log($"{aEventArgs.Request.Path} served as resource {lResourceName}");
                   aEventArgs.Response.ContentStream := new WrappedPlatformStream(lStream);
                 end
                 else begin
-                  Log($"{aEventArgs.Request.Path} resource 404. avilable resources are:");
+                  Log($"{aEventArgs.Request.Path} resource 404");
                   aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
                   //aEventArgs.Response.Header["Content-Type"] := "text/html";
                   aEventArgs.Response.HttpCode := HttpStatusCode.NotFound;
                   aEventArgs.Response.ContentString := $"<h1>404 Embedded resource Not found.</h1> <tt>{aEventArgs.Request.Path}</tt>";
                 end;
+              end
+              else begin
+                raise new NotImplementedException("Serving static resources is not yet implemented for this platform.");
               end;
 
             end
             else begin
+
               Log($"{aEventArgs.Request.Path} unknown path 404");
               if not RunError(aEventArgs, 404) then begin
                 aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
@@ -101,9 +112,11 @@ type
                 aEventArgs.Response.HttpCode := HttpStatusCode.NotFound;
                 aEventArgs.Response.ContentString := $"<h1>404 Not found.</h1> <tt>{aEventArgs.Request.Path}</tt>";
               end;
+
             end;
           end;
         end;
+
       except
         on E: Exception do begin
           aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");

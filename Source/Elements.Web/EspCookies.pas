@@ -88,7 +88,9 @@ type
         lString.Append(k);
         lString.Append("=");
         var lCookie := fCookies[k];
-        for each v in lCookie.Values.Keys do begin
+        for each v in lCookie.Values.Keys index j do begin
+          if j > 0 then
+            lString.Append("&");
           if (v = "") and (lCookie.Values.Count = 1)  then begin
             lString.Append(lCookie.Values[v]) // review this
           end
@@ -108,7 +110,7 @@ type
         if assigned(lCookie.Expires) then begin
           lString.Append("; ");
           lString.Append("expires=");
-          lString.Append(lCookie.Expires.ToString("ddd, dd-mmm-yyyy hh:mm:ss UTC"));
+          lString.Append(lCookie.Expires.ToString("ddd, dd-MMM-yyyy HH:mm:ss UTC"));
         end;
 
         lString.Append("; ");
@@ -117,7 +119,7 @@ type
       end;
 
       result := lString.ToString;
-      Log($"set-cookie: {result}");
+      //Log($"set-cookie: {result}");
     end;
 
   end;
