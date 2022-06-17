@@ -56,24 +56,24 @@ type
 
     method AutoEventWireup;
     begin
-      Log($"AutoEventWireup for {typeOf(self).Name}");
+      //Log($"AutoEventWireup for {typeOf(self).Name}");
 
       for each m in typeOf(self).Methods do begin
         //var p := m.Name.LastIndexOf("_");
         //if p > 0 then begin
           //var lName := m.Name.Substring(p+1);
           case caseInsensitive(m.Name) of
-            //"Page_PreInit": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
-            //"Page_Init": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
-            //"Page_InitComplete": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
-            //"Page_PreLoad": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
-            "Page_Load": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
-            //"Page_LoadComplete": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
-            //"Page_PreRender": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
-            //"Page_PreRenderComplete": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
-            //"Page_SaveStateComplete": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
-            //"Page_Render": Load += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
-            "Page_UnLoad": UnLoad += (s, e) -> (m as System.Reflection.MethodInfo).Invoke(self, [s,e]);
+            //"Page_PreInit": Load += (s, e) -> m.Invoke(self, [s,e]);
+            //"Page_Init": Load += (s, e) -> m.Invoke(self, [s,e]);
+            //"Page_InitComplete": Load += (s, e) -> m.Invoke(self, [s,e]);
+            //"Page_PreLoad": Load += (s, e) -> m.Invoke(self, [s,e]);
+            "Page_Load": Load += (s, e) -> m.Invoke(self, [s,e]);
+            //"Page_LoadComplete": Load += (s, e) -> m.Invoke(self, [s,e]);
+            //"Page_PreRender": Load += (s, e) -> m.Invoke(self, [s,e]);
+            //"Page_PreRenderComplete": Load += (s, e) -> m.Invoke(self, [s,e]);
+            //"Page_SaveStateComplete": Load += (s, e) -> m.Invoke(self, [s,e]);
+            //"Page_Render": Load += (s, e) -> m.Invoke(self, [s,e]);
+            "Page_UnLoad": UnLoad += (s, e) -> m.Invoke(self, [s,e]);
           end;
         //end;
       end;
@@ -99,7 +99,8 @@ type
 
   Page = public class(UserControl)
   public
-    property Header: WebPageHeader;
+    property Header: WebPageHeader :=  new WebPageHeader(); readonly; lazy;
+
     property Title: String read Header:Title write Header:Title;
     property Master: MasterPage;
 
@@ -134,7 +135,7 @@ type
     begin
       Request := aRequest;
       Response := aResponse;
-      Session := new WebSessionState;
+      Session := WebSessionState.FinfOrCreateSession(self);
     end;
 
     property Page: Page read Request.Page;
@@ -142,10 +143,18 @@ type
     property Response: WebResponse; readonly;
     property Session: WebSessionState;
     property Server: WebServerForContext;
+
+  private
+
+
+
   end;
 
   WebSessionState = public class
   public
+
+    property Expires: not nullable DateTime read private write := DateTime.UtcNow.AddMinutes(ESP_SESSION_EXPIRATION_MINUTES);
+    property IsExpired: Boolean read Expires < DateTime.UtcNow;
     property Item[aName: not nullable String]: nullable Object read fSessionState[aName] write SetSessionState; default;
 
     method Abandon;
@@ -160,6 +169,55 @@ type
 
   assembly
 
+    constructor(aSessionID: String; aContext: WebContext);
+    begin
+    end;
+
+    method ExtendSession;
+    begin
+      Expires := DateTime.UtcNow.AddMinutes(ESP_SESSION_EXPIRATION_MINUTES);
+    end;
+
+    class var fActiveSessions := new Dictionary<String,WebSessionState>; readonly;
+
+    class method FinfOrCreateSession(aContext: not nullable WebContext): not nullable WebSessionState;
+    begin
+      var lSessionID := aContext.Request.Cookies[ESP_SESSION_ID_COOKIE_NAME]:Values["ID"];
+      if assigned(lSessionID) then begin
+        Log($"Looking for session with id {lSessionID}");
+        var lSession := locking fActiveSessions do fActiveSessions[lSessionID];
+        if assigned(lSession) then begin
+          if not lSession:IsExpired then begin
+            lSession.ExtendSession;
+            result := lSession;
+          end
+          else begin
+            locking fActiveSessions do
+              fActiveSessions[lSessionID] := nil;
+          end;
+        end;
+      end;
+
+      if not assigned(result) then begin
+        lSessionID := Guid.NewGuid.ToString(GuidFormat.Default);
+        aContext.Response.Cookies[ESP_SESSION_ID_COOKIE_NAME]["ID"] := lSessionID;
+        aContext.Response.Cookies[ESP_SESSION_ID_COOKIE_NAME].Expires := DateTime.UtcNow.AddMinutes(ESP_SESSION_EXPIRATION_MINUTES);
+        aContext.Response.Cookies[ESP_SESSION_ID_COOKIE_NAME].Domain := aContext.Request.Url.Host;
+        result := new WebSessionState(lSessionID, aContext);
+        locking fActiveSessions do
+          fActiveSessions[lSessionID] := result;
+        Log($"Created new session for id {lSessionID}");
+      end;
+    end;
+
+    class method ExpireSessions;
+    begin
+      for each k in fActiveSessions.Keys.UniqueCopy do
+        if fActiveSessions[k].IsExpired then
+          locking fActiveSessions do
+            fActiveSessions[k] := nil;
+    end;
+
   private
 
     fSessionState := new Dictionary<String,Object>;
@@ -170,45 +228,8 @@ type
       // todo: persist?
     end;
 
-    //constructor(aRequest: WebRequest; aResponse: WebResponse);
-    //begin
-
-    //end;
-
-  end;
-
-  WebCookie = public class
-  public
-    property Domain: String;
-    property Secure: Boolean;
-    property Expires: DateTime;
-    property Values[aName: String]: String read nil write nil; default;
-  end;
-
-  ImmutableWebCookieCollection = public class
-  public
-
-    property Cookies[aName: String]: WebCookie read nil; default;
-
-  assembly
-
-    constructor(aCookieHeader: nullable String);
-    begin
-      //eg: // Cookie: _ga=GA1.1.1318372872.1638279229
-
-    end;
-
-  end;
-
-  WebCookieCollection = public class(ImmutableWebCookieCollection)
-  public
-
-    //property Cookies[aName: String]: String read nil; default;
-
-    method &Add(aCookie: WebCookie);
-    begin
-
-    end;
+    const ESP_SESSION_EXPIRATION_MINUTES = 10;
+    const ESP_SESSION_ID_COOKIE_NAME = "ESP_SessionID";
 
   end;
 

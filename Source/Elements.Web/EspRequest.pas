@@ -14,17 +14,21 @@ type
       Url := aUrl;
 
       fServerVariables := new Dictionary<String,String>;
-      fServerVariables["HTTP_USER_AGENT"] := UserAgent;
 
       fServerVariables["HTTP_HOST"] := aUrl.Host;
       fServerVariables["HTTP_PORT"] := aUrl.Port.ToString;;
+      fServerVariables["HTTP_USER_AGENT"] := HttpServerRequest.Header["User-Agent"]:Value;
 
       fServerVariables["HTTP_ACCEPT"] := aRequest.Header["Accept"]:Value;
       fServerVariables["HTTP_ACCEPT_LANGUAGE"] := aRequest.Header["Accept-Language"]:Value;
+      //fServerVariables["HTTP_ACCEPT_ENCODING"] := aRequest.Header["Accept-Language"]:Value;
       fServerVariables["HTTP_COOKIE"] := aRequest.Header["Cookie"]:Value;
       fServerVariables["HTTP_REFERER"] := aRequest.Header["Reeferer"]:Value;
+      //fServerVariables["HTTP_CONTENT_LENGTH"] := aRequest.ContentLength.ToString;
+
       fServerVariables["QUERY_STRING"] := QueryString.ToString;
       fServerVariables["REQUEST_METHOD"] := aRequest.Header.RequestType;
+      fServerVariables["PATH_INFO"] := aUrl.Path;
 
       fServerVariables["SERVER_NAME"] := aUrl.Host; // always same as HTTP_HOST
       fServerVariables["SERVER_SOFTWARE"] := $"RemObjects Elements Server Pages {Environment.Platform}";
@@ -88,7 +92,7 @@ type
     //property PhysicalPath: String read Page.AbsolutePath
     //property ApplicationPath: String; readonly; public;
     property PhysicalApplicationPath: String; readonly; public;
-    property UserAgent: String read HttpServerRequest.Header["User-Agent"]:Value;
+    property UserAgent: String read fServerVariables["HTTP_USER_AGENT"];
     //property UserLanguages: array of String; readonly; public;
     property Browser: WebBrowserCapabilities; public;
     property UserHostName: String; readonly; public;
@@ -100,9 +104,9 @@ type
     //property Item[key: String]: String; readonly; public; default;
     property QueryString[aValue: String]: String read HttpServerRequest.QueryString[aValue];
     property QueryString: String read HttpServerRequest.QueryString.ToString;
-    property Form[aValue: String]: String read ""; {$HINT TODO}
-    property Form: ImmutableDictionary<String,String> read nil; {$HINT TODO}
-    property Headers[aValue: String]: String read HttpServerRequest.Header[aValue].Value; {$HINT TODO}
+    //property Form[aValue: String]: String read ""; {$HINT TODO}
+    property Form: ImmutableDictionary<String,String> := LazyLoadForm; readonly; lazy;
+    property Headers[aValue: String]: String read HttpServerRequest.Header[aValue].Value;
     //property Unvalidated: System.Web.UnvalidatedRequestValues; readonly; public;
     property ServerVariables: ImmutableDictionary<String,String> read fServerVariables;
     property Cookies: ImmutableWebCookieCollection; readonly; public;
@@ -118,6 +122,19 @@ type
 
   private
     fServerVariables: Dictionary<String,String>;
+
+    method LazyLoadForm: ImmutableDictionary<String,String>;
+    begin
+      var lResult := new Dictionary<String,String>;
+      if HttpServerRequest.HasContentLength then begin
+        for each s in HttpServerRequest.ContentString.Split("&") do begin
+          var lSplit := s.SplitAtFirstOccurrenceOf("=");
+          if lSplit.Count = 2 then
+            lResult[lSplit[0]] := lSplit[1]; // decode!?
+        end;
+      end;
+      result := lResult;
+    end;
   end;
 
   WebBrowserCapabilities = public class

@@ -49,4 +49,22 @@ type
 
   System.Web.UI.PersistenceMode = public enum (Attribute = 0, InnerProperty = 1, InnerDefaultProperty = 2, EncodedInnerDefaultProperty = 3);
 
+  //
+  // System.Web.Services (not implemented, just to make them compile)
+  //
+
+  System.Web.Services.WebService = public class
+  public
+    constructor; empty;
+  end;
+
+  System.Web.Services.WebServiceAttribute = public class(Attribute)
+  public
+    property &Namespace: String;
+  end;
+
+  System.Web.Services.WebMethodAttribute = public class(Attribute)
+  public
+  end;
+
 end.

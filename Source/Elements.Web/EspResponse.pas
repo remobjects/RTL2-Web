@@ -1,6 +1,7 @@
 ﻿namespace RemObjects.Elements.Web;
 
 uses
+  RemObjects.InternetPack,
   RemObjects.InternetPack.Http;
 
 type
@@ -10,13 +11,14 @@ type
     begin
       HttpServerResponse := aResponse;
       HttpServerResponse.ContentStream := new MemoryStream;
+      Cookies := new WebCookieCollection;
     end;
 
     property HttpServerResponse: HttpServerResponse; readonly;
     property Encoding: Encoding := Encoding.UTF8;
 
     //
-    //
+    // Writing content
     //
 
     method &Write(aString: nullable String);
@@ -45,6 +47,34 @@ type
       &Write(aObject.ToString);
     end;
 
+   //method &Write(buffer: array of Char; &index: Integer; count: Integer); public;
+    //method &Write(ch: Char); public;
+    //method &Write(obj: Object); public;
+    //method &Write(s: String); public;
+    //method WriteSubstitution(callback: System.Web.HttpResponseSubstitutionCallback); public;
+    //method WriteFile(fileHandle: IntPtr; offset: Int64; size: Int64); public;
+    //method WriteFile(filename: String; offset: Int64; size: Int64); public;
+    //method WriteFile(filename: String; readIntoMemory: Boolean); public;
+    //method WriteFile(filename: String); public;
+
+    //method TransmitFile(aFileName: String; aOffset: Int64; aLength: Int64); public;
+    //begin
+      //using s := new FileStream(aFileName, FileOpenMode.ReadOnly) do
+        //HttpServerResponse.ContentStream.Write(s, aOffset, aLength);
+    //end;
+
+    method TransmitFile(aFileName: String); public;
+    begin
+      var b := File.ReadBytes(aFileName);
+      HttpServerResponse.ContentStream.Write(b, 0, length(b));
+      //using s := new FileStream(aFileName, FileOpenMode.ReadOnly) do
+        //HttpServerResponse.ContentStream.Write(s);
+    end;
+
+    //
+    //
+    //
+
 // System.Web, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a
 // /Users/mh/Code/Fire Support/_NETFramework/v4.5/System.Web.dll
 
@@ -63,6 +93,7 @@ type
     //class method RemoveOutputCacheItem(path: String; providerName: String); public;
     //class method RemoveOutputCacheItem(path: String); public;
     //method Close; public;
+
     method BinaryWrite(buffer: array of Byte); public;
     begin
       HttpServerResponse.ContentStream.Write(buffer, length(buffer));
@@ -97,11 +128,36 @@ type
 
     end;
     //method AppendToLog(&param: String); public;
-    //method Redirect(url: String; endResponse: Boolean); public;
-    method Redirect(url: String);
+    method Redirect(aUrl: String; aShouldEndResponse: Boolean);
     begin
-
+      Log($"Redirecting to {aUrl}");
+      HttpServerResponse.HttpCode := HttpStatusCode.MovedPermanently;
+      HttpServerResponse.Header.SetHeaderValue("Location", aUrl);
+      HttpServerResponse.ContentString := $"<head><title>Document PermanentlyMoved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a href=""{aUrl}"">here</a>.</p></body>";
+      if aShouldEndResponse then
+        raise new CleanlyEndResponseException;
     end;
+
+    method Redirect(aUrl: String);
+    begin
+      Redirect(aUrl, true);
+    end;
+
+    method RedirectPermanent(aUrl: String; aShouldEndResponse: Boolean);
+    begin
+      Log($"Redirecting to {aUrl}");
+      HttpServerResponse.HttpCode := HttpStatusCode.MovedPermanently;
+      HttpServerResponse.Header.SetHeaderValue("Location", aUrl);
+      HttpServerResponse.ContentString := $"<head><title>Document Moved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a href=""{aUrl}"">here</a>.</p></body>";
+      if aShouldEndResponse then
+        raise new CleanlyEndResponseException;
+    end;
+
+    method RedirectPermanent(aUrl: String);
+    begin
+      RedirectPermanent(aUrl, true);
+    end;
+
     //method RedirectToRoute(routeName: String; routeValues: System.Web.Routing.RouteValueDictionary); public;
     //method RedirectToRoute(routeName: String; routeValues: Object); public;
     //method RedirectToRoute(routeValues: System.Web.Routing.RouteValueDictionary); public;
@@ -113,48 +169,14 @@ type
     //method RedirectToRoutePermanent(routeName: String); public;
     //method RedirectToRoutePermanent(routeValues: Object); public;
 
-    method RedirectPermanent(aUrl: String; aShouldEndResponse: Boolean);
-    begin
-
-    end;
-
-    method RedirectPermanent(aUrl: String);
-    begin
-      RedirectPermanent(aUrl, true);
-    end;
-
-    //method &Write(buffer: array of Char; &index: Integer; count: Integer); public;
-    //method &Write(ch: Char); public;
-    //method &Write(obj: Object); public;
-    //method &Write(s: String); public;
-    //method WriteSubstitution(callback: System.Web.HttpResponseSubstitutionCallback); public;
-    //method WriteFile(fileHandle: IntPtr; offset: Int64; size: Int64); public;
-    //method WriteFile(filename: String; offset: Int64; size: Int64); public;
-    //method WriteFile(filename: String; readIntoMemory: Boolean); public;
-    //method WriteFile(filename: String); public;
-
-    //method TransmitFile(aFileName: String; aOffset: Int64; aLength: Int64); public;
-    //begin
-      //using s := new FileStream(aFileName, FileOpenMode.ReadOnly) do
-        //HttpServerResponse.ContentStream.Write(s, aOffset, aLength);
-    //end;
-
-    method TransmitFile(aFileName: String); public;
-    begin
-      var b := File.ReadBytes(aFileName);
-      HttpServerResponse.ContentStream.Write(b, 0, length(b));
-      //using s := new FileStream(aFileName, FileOpenMode.ReadOnly) do
-        //HttpServerResponse.ContentStream.Write(s);
-    end;
-
-    method AddHeader(aName: String; aValue: String);
+   method AddHeader(aName: String; aValue: String);
     begin
       HttpServerResponse.Header.SetHeaderValue(aName, aValue);
     end;
 
     method &End; public;
     begin
-
+      raise new CleanlyEndResponseException;
     end;
 
     //method ApplyAppPathModifier(virtualPath: String): String; public;
