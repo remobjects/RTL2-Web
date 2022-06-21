@@ -1,6 +1,7 @@
 ﻿namespace RemObjects.Elements.Web;
 
 uses
+  RemObjects.InternetPack,
   RemObjects.Elements.RTL.Reflection;
 
 type
@@ -59,6 +60,15 @@ type
 
   protected
 
+    method CreateDelegate(aInstance: not nullable Object; aMethod: not nullable &Method): not nullable EventHandler;
+    begin
+      {$IF ECHOES}
+      result := &Delegate.CreateDelegate(EventHandler, self, aMethod) as EventHandler;
+      {$ELSEIF ISLAND}
+      result := Utilities.NewDelegate(System.Type(typeOf(aInstance)).RTTI, self, System.MethodInfo(aMethod).Pointer) as RemObjects.InternetPack.EventHandler;
+      {$ENDIF}
+    end;
+
     method AutoEventWireup;
     begin
       //Log($"AutoEventWireup for {typeOf(self).Name}");
@@ -68,17 +78,17 @@ type
         //if p > 0 then begin
           //var lName := m.Name.Substring(p+1);
           case caseInsensitive(m.Name) of
-            //"Page_PreInit": Load += (s, e) -> m.Invoke(self, [s,e]);
-            //"Page_Init": Load += (s, e) -> m.Invoke(self, [s,e]);
-            //"Page_InitComplete": Load += (s, e) -> m.Invoke(self, [s,e]);
-            //"Page_PreLoad": Load += (s, e) -> m.Invoke(self, [s,e]);
-            "Page_Load": Load += (s, e) -> m.Invoke(self, [s,e]);
-            //"Page_LoadComplete": Load += (s, e) -> m.Invoke(self, [s,e]);
-            //"Page_PreRender": Load += (s, e) -> m.Invoke(self, [s,e]);
-            //"Page_PreRenderComplete": Load += (s, e) -> m.Invoke(self, [s,e]);
-            //"Page_SaveStateComplete": Load += (s, e) -> m.Invoke(self, [s,e]);
-            //"Page_Render": Load += (s, e) -> m.Invoke(self, [s,e]);
-            "Page_UnLoad": UnLoad += (s, e) -> m.Invoke(self, [s,e]);
+            //"Page_PreInit": Load += CreateDelegate(self, m);
+            //"Page_Init": Load += CreateDelegate(self, m);
+            //"Page_InitComplete": Load += CreateDelegate(self, m);
+            //"Page_PreLoad": Load += CreateDelegate(self, m);
+            "Page_Load": Load += CreateDelegate(self, m);
+            //"Page_LoadComplete": Load += CreateDelegate(self, m);
+            //"Page_PreRender": Load += CreateDelegate(self, m);
+            //"Page_PreRenderComplete": Load += CreateDelegate(self, m);
+            //"Page_SaveStateComplete": Load += CreateDelegate(self, m);
+            //"Page_Render": Load += CreateDelegate(self, m);
+            "Page_UnLoad": UnLoad += CreateDelegate(self, m);
           end;
         //end;
       end;
