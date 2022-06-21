@@ -121,7 +121,7 @@ type
         if lCookie.Secure then
           lString.Append("; Secure");
 
-        if HttpOnly then
+        if lCookie.HttpOnly then
           lString.Append("; HttpOnly");
 
       end;

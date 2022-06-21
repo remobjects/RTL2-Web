@@ -43,7 +43,8 @@ type
 
     method &Write(aObject: Object);
     begin
-      &Write(aObject.ToString);
+      if assigned(aObject) then
+        &Write(aObject.ToString);
     end;
 
     //method WriteSubstitution(callback: System.Web.HttpResponseSubstitutionCallback); public;
