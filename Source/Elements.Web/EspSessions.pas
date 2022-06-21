@@ -58,20 +58,21 @@ type
   assembly
 
     class var fActiveSessions := new Dictionary<String,WebSessionState>; readonly;
+    class var fMonitor := new Monitor;
 
     class method FindOrCreateSession(aContext: not nullable WebContext): not nullable WebSessionState;
     begin
       var lSessionID := aContext.Request.Cookies[ESP_SESSION_ID_COOKIE_NAME]:Values["ID"];
       if assigned(lSessionID) then begin
         //Log($"Looking for session with id {lSessionID}");
-        var lSession := locking fActiveSessions do fActiveSessions[lSessionID];
+        var lSession := locking fMonitor do fActiveSessions[lSessionID];
         if assigned(lSession) then begin
           if not lSession:IsExpired then begin
             lSession.ExtendSession;
             result := lSession;
           end
           else begin
-            locking fActiveSessions do
+            locking fMonitor do
               fActiveSessions[lSessionID] := nil;
           end;
         end;
@@ -83,7 +84,7 @@ type
         aContext.Response.Cookies[ESP_SESSION_ID_COOKIE_NAME].Expires := DateTime.UtcNow.AddMinutes(ESP_SESSION_EXPIRATION_MINUTES);
         aContext.Response.Cookies[ESP_SESSION_ID_COOKIE_NAME].Domain := aContext.Request.Url.Host;
         result := new WebSessionState(lSessionID);
-        locking fActiveSessions do
+        locking fMonitor do
           fActiveSessions[lSessionID] := result;
         //Log($"Created new session for id {lSessionID}");
       end;
@@ -93,7 +94,7 @@ type
     begin
       for each k in fActiveSessions.Keys.UniqueCopy do
         if fActiveSessions[k].IsExpired then
-          locking fActiveSessions do
+          locking fMonitor do
             fActiveSessions[k] := nil;
     end;
 
