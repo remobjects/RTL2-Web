@@ -64,7 +64,7 @@ type
     property HttpServerRequest: HttpServerRequest; readonly;
     property Page: Page read assembly write;
 
-    property HttpMethod: HttpRequestMode read HttpServerRequest.Header.Mode;
+    property HttpMethodMode: HttpRequestMode read HttpServerRequest.Header.Mode;
 
     //
     // From System.Web.Request
@@ -99,14 +99,14 @@ type
     //method Abort; public;
     //property RequestContext: System.Web.Routing.RequestContext; public;
     //property IsLocal: Boolean; readonly; public;
-    //property HttpMethod: String read HttpServerRequest.Mode;
-    //property RequestType: String read HttpServerRequest.Type;
-    //property ContentType: String; public;
-    //property ContentLength: Integer; readonly; public;
+    property HttpMethod: nullable String read fServerVariables["REQUEST_METHOD"];
+    property RequestType: nullable String read HttpMethod;
+    property ContentType: nullable String read Headers["Content-Type"];
+    property ContentLength: Integer read if HttpServerRequest.HasContentLength then HttpServerRequest.ContentLength else 0;
     //property ContentEncoding: System.Text.Encoding; public;
-    //property AcceptTypes: array of String; readonly; public;
+    property AcceptTypes: array of String read SplitHeaderValues(Headers["Accept"]);
     //property IsAuthenticated: Boolean; readonly; public;
-    //property IsSecureConnection: Boolean; readonly; public;
+    property IsSecureConnection: Boolean read fServerVariables["HTTPS"] = "on";
     property Path: String read HttpServerRequest.Path;
     //property AnonymousID: String read assembly write; public;
     //property FilePath: String; readonly; public;
@@ -118,13 +118,13 @@ type
     //property ApplicationPath: String; readonly; public;
     property PhysicalApplicationPath: String; readonly; public;
     property UserAgent: nullable String read fServerVariables["HTTP_USER_AGENT"];
-    //property UserLanguages: array of String; readonly; public;
+    property UserLanguages: array of String read SplitHeaderValues(Headers["Accept-Language"]);
     property Browser: WebBrowserCapabilities; public;
     property UserHostName: nullable String read UserHostAddress; public;
     property UserHostAddress: nullable String read coalesce(fServerVariables["REMOTE_ADDR"], fServerVariables["HTTP_X_FORWARDED_FOR"]); public;
     property RawUrl: String read Url.ToAbsoluteString; public; // for now
     property Url: Url; readonly; public;
-    property UrlReferrer: Url; readonly; public;
+    property UrlReferrer: nullable Url read Url.TryUrlWithString(coalesce(Headers["Referer"], Headers["Referrer"])); public;
     property &Params: WebNameValueCollection := LazyLoadParams; readonly; lazy;
     property Item[key: String]: nullable String read &Params[key]; default;
     property QueryString[aValue: String]: nullable String read fQueryString[aValue];
@@ -185,6 +185,14 @@ type
     begin
       for each lName in aValues.Keys do
         aParams.Add(lName, aValues[lName]);
+    end;
+
+    method SplitHeaderValues(aValue: nullable String): array of String;
+    begin
+      if length(aValue) = 0 then
+        exit [];
+
+      result := aValue.Split(",").Select(v -> v.Trim).Where(v -> length(v) > 0).ToArray;
     end;
   end;
 

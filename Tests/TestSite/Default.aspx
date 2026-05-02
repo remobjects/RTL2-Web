@@ -9,6 +9,10 @@
   RemObjects.Elements.Web.Application["last-query"] := Request.QueryString["q"];
   Response.Cookies["Seen"].Value := "yes";
   Response.Cookies["Flavor"]["kind"] := "chocolate";
+  var lAcceptTypes := Request.AcceptTypes;
+  var lUserLanguages := Request.UserLanguages;
+  var lAcceptType := if length(lAcceptTypes) > 0 then lAcceptTypes[0] else "";
+  var lUserLanguage := if length(lUserLanguages) > 0 then lUserLanguages[0] else "";
 %>
 query=<%=Request.QueryString["q"]%>
 form=<%=Request.Form["name"]%>
@@ -21,6 +25,16 @@ params-form=<%=Request.Params["name"]%>
 params-cookie=<%=Request.Params["Seen"]%>
 params-server=<%=Request.Params["SERVER_NAME"]%>
 params-default=<%=Request["q"]%>
+context-current-query=<%=System.Web.HttpContext.Current.Request.QueryString["q"]%>
+request-http-method=<%=Request.HttpMethod%>
+request-request-type=<%=Request.RequestType%>
+request-content-type=<%=Request.ContentType%>
+request-content-length=<%=Request.ContentLength%>
+request-total-bytes=<%=Request.TotalBytes%>
+request-secure=<%=Request.IsSecureConnection%>
+request-referrer=<%=Request.UrlReferrer:ToAbsoluteString%>
+request-accept=<%=lAcceptType%>
+request-language=<%=lUserLanguage%>
 header-user-agent=<%=Request.Headers["User-Agent"]%>
 header-user-agent-lower=<%=Request.Headers["user-agent"]%>
 header-custom=<%=Request.Headers["X-Test-Header"]%>

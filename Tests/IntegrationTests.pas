@@ -65,6 +65,9 @@ type
       using lRequest := new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, BaseUrl+aPath) do begin
         lRequest.Headers.TryAddWithoutValidation("User-Agent", "RTL2WebTests/1.0");
         lRequest.Headers.TryAddWithoutValidation("X-Test-Header", "header-value");
+        lRequest.Headers.TryAddWithoutValidation("Accept", "text/html, application/xhtml+xml");
+        lRequest.Headers.TryAddWithoutValidation("Accept-Language", "en-US, en;q=0.9");
+        lRequest.Headers.TryAddWithoutValidation("Referer", BaseUrl+"/referrer");
 
         using lResponse := aClient.SendAsync(lRequest).GetAwaiter.GetResult do begin
           var lResult := lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult;
@@ -94,6 +97,7 @@ type
         Assert.IsTrue(lPage.Contains("params-query=hello world"));
         Assert.IsTrue(lPage.Contains("params-server=127.0.0.1"));
         Assert.IsTrue(lPage.Contains("params-default=hello world"));
+        Assert.IsTrue(lPage.Contains("context-current-query=hello world"));
         Assert.IsTrue(lPage.Contains("session=1"));
         Assert.IsTrue(lPage.Contains("application=hello world"));
         Assert.IsTrue(lPage.Contains("control=from-control"));
@@ -104,8 +108,14 @@ type
         Assert.IsTrue(lPost.Contains("form=Form Value"));
         Assert.IsTrue(lPost.Contains("params-query=post"));
         Assert.IsTrue(lPost.Contains("params-form=Form Value"));
+        Assert.IsTrue(lPost.Contains("request-http-method=POST"));
+        Assert.IsTrue(lPost.Contains("request-request-type=POST"));
+        Assert.IsTrue(lPost.Contains("request-content-type=application/x-www-form-urlencoded"));
+        Assert.IsTrue(lPost.Contains("request-content-length=15"));
+        Assert.IsTrue(lPost.Contains("request-total-bytes=15"));
 
         Assert.AreEqual(GetString("/Ping.ashx?value=ok"), "handler=ok");
+        Assert.AreEqual(GetString("/Ping.ashx?value=ok&current=1"), "current=ok");
         Assert.IsTrue(GetString("/Static/hello.txt").StartsWith("hello from embedded resource"));
       finally
         StopTestSite(lProcess);
@@ -178,6 +188,12 @@ type
           Assert.IsTrue(lPage.Contains("server-https=off"));
           Assert.IsTrue(lPage.Contains("server-remote-addr=127.0.0.1"));
           Assert.IsTrue(lPage.Contains("server-local-addr=127.0.0.1"));
+          Assert.IsTrue(lPage.Contains("request-http-method=GET"));
+          Assert.IsTrue(lPage.Contains("request-request-type=GET"));
+          Assert.IsTrue(lPage.Contains("request-secure=False"));
+          Assert.IsTrue(lPage.Contains("request-referrer=http://127.0.0.1:8001/referrer"));
+          Assert.IsTrue(lPage.Contains("request-accept=text/html"));
+          Assert.IsTrue(lPage.Contains("request-language=en-US"));
         end;
       finally
         StopTestSite(lProcess);

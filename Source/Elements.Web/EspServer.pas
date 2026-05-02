@@ -33,24 +33,37 @@ type
           var lUrl := Url.UrlWithComponents(lScheme, lHost, lPort, aEventArgs.Request.Path, aEventArgs.Request.QueryString.ToString, nil, nil);
           var lContext := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl, aEventArgs.Connection.RemoteEndPoint, aEventArgs.Connection.LocalEndPoint), new WebResponse(aEventArgs.Response));
 
+          var lPreviousContext := WebContext.Current;
+          WebContext.Current := lContext;
           try
 
-            if lObject is Page then begin
-              var lPage := lObject as Page;
-              lPage.Context := lContext;
-              lContext.Request.Page := lPage;
-              lPage.OnLoad(new EventArgs);
-              lPage.RenderControl(nil);
-              lPage.OnUnLoad(new EventArgs);
-            end
-            else if lObject is IHttpHandler then begin
-              (lObject as IHttpHandler).ProcessRequest(lContext)
-            end
-            else begin
-              aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
-              //aEventArgs.Response.Header["Content-Type"] := "text/html";
-              aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.InternalServerError;
-              aEventArgs.Response.ContentString := $"<h1>{Integer(aEventArgs.Response.HttpCode)} Internal Error.</h1><p>Unexpected/unsupported class {typeOf(lObject)} for path {aEventArgs.Request.Path}</p>";
+            try
+
+              if lObject is Page then begin
+                var lPage := lObject as Page;
+                lPage.Context := lContext;
+                lContext.Request.Page := lPage;
+                lPage.OnLoad(new EventArgs);
+                lPage.RenderControl(nil);
+                lPage.OnUnLoad(new EventArgs);
+              end
+              else if lObject is IHttpHandler then begin
+                (lObject as IHttpHandler).ProcessRequest(lContext)
+              end
+              else begin
+                aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
+                //aEventArgs.Response.Header["Content-Type"] := "text/html";
+                aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.InternalServerError;
+                aEventArgs.Response.ContentString := $"<h1>{Integer(aEventArgs.Response.HttpCode)} Internal Error.</h1><p>Unexpected/unsupported class {typeOf(lObject)} for path {aEventArgs.Request.Path}</p>";
+              end;
+
+            except
+              on E: CleanlyEndResponseException do; // ignore these
+              {$IF ECHOES}
+              on E: System.Reflection.TargetInvocationException do
+                if E.InnerException is not CleanlyEndResponseException then
+                  raise;
+              {$ENDIF}
             end;
 
             var lCookieIndex := 0;
@@ -63,14 +76,9 @@ type
             end;
             aEventArgs.Response.ContentStream.Seek(0, SeekOrigin.Begin);
 
-          except
-            on E: CleanlyEndResponseException do; // ignore these
-            {$IF ECHOES}
-            on E: System.Reflection.TargetInvocationException do
-              if E.InnerException is not CleanlyEndResponseException then
-                raise;
-            {$ENDIF}
-          end
+          finally
+            WebContext.Current := lPreviousContext;
+          end;
 
         end
         else begin
@@ -141,8 +149,14 @@ type
           Log($"{e.Request.Path} error {aCode} served via {lPage}");
           lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(e.Request, lUrl, e.Connection.RemoteEndPoint, e.Connection.LocalEndPoint), new WebResponse(e.Response));
           lPage.Context.Request.Page := lPage;
-          lPage.RenderControl(nil);
-          e.Response.ContentStream.Seek(0, SeekOrigin.Begin);
+          var lPreviousContext := WebContext.Current;
+          WebContext.Current := lPage.Context;
+          try
+            lPage.RenderControl(nil);
+            e.Response.ContentStream.Seek(0, SeekOrigin.Begin);
+          finally
+            WebContext.Current := lPreviousContext;
+          end;
           exit true;
         end;
       end;

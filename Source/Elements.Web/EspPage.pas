@@ -157,6 +157,25 @@ type
     property Response: WebResponse; readonly;
     property Session: WebSessionState;
     property Server: WebServerForContext;
+
+    class property Current: nullable WebContext read GetCurrent write SetCurrent;
+
+  private
+
+    {$IF ECHOES}
+    [System.ThreadStatic]
+    {$ENDIF}
+    class var fCurrent: nullable WebContext;
+
+    class method GetCurrent: nullable WebContext;
+    begin
+      result := fCurrent;
+    end;
+
+    class method SetCurrent(aValue: nullable WebContext);
+    begin
+      fCurrent := aValue;
+    end;
   end;
 
   CompiledTemplateBuilder = public class
