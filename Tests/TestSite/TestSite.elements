@@ -52,6 +52,10 @@
   <ItemGroup>
     <None Include="Default.aspx" />
     <None Include="Site.master" />
+    <None Include="Nested.aspx" />
+    <None Include="NestedFallback.aspx" />
+    <None Include="NestedBase.master" />
+    <None Include="NestedChild.master" />
     <None Include="Controls\EchoControl.ascx" />
     <None Include="Ping.ashx" />
     <None Include="Response.ashx" />

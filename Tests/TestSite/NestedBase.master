@@ -1,0 +1,6 @@
+﻿<%@ Master Language="Oxygene" AutoEventWireup="true" Title="Nested Base" %>
+
+base-start
+<asp:ContentPlaceHolder ID="Header" runat="server">default-header</asp:ContentPlaceHolder>
+<asp:ContentPlaceHolder ID="Body" runat="server" />
+base-end

@@ -32,6 +32,7 @@ type
           var lScheme := "http"; // for now
           var lUrl := Url.UrlWithComponents(lScheme, lHost, lPort, aEventArgs.Request.Path, aEventArgs.Request.QueryString.ToString, nil, nil);
           var lContext := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl, aEventArgs.Connection.RemoteEndPoint, aEventArgs.Connection.LocalEndPoint), new WebResponse(aEventArgs.Response));
+          lContext.Server := new WebServerForContext(self, lContext);
 
           var lPreviousContext := WebContext.Current;
           WebContext.Current := lContext;
@@ -148,6 +149,7 @@ type
         with matching lPage := Page(PageFactory:DoFindClassForPath(e.Request.Path)) do begin
           Log($"{e.Request.Path} error {aCode} served via {lPage}");
           lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(e.Request, lUrl, e.Connection.RemoteEndPoint, e.Connection.LocalEndPoint), new WebResponse(e.Response));
+          lPage.Context.Server := new WebServerForContext(self, lPage.Context);
           lPage.Context.Request.Page := lPage;
           var lPreviousContext := WebContext.Current;
           WebContext.Current := lPage.Context;
@@ -197,9 +199,62 @@ type
   WebServerForContext = public class
   public
 
+    method MapPath(aPath: nullable String): nullable String;
+    begin
+      if not assigned(aPath) then
+        exit;
+
+      var lPath := aPath.Replace("\", "/");
+      var lApplicationRoot := PhysicalApplicationPath;
+      if length(lApplicationRoot) = 0 then
+        exit aPath;
+
+      if lPath.StartsWith("~/") then
+        exit Path.GetFullPath(Path.Combine(lApplicationRoot, lPath.Substring(2)));
+
+      if lPath.StartsWith("/") then
+        exit Path.GetFullPath(Path.Combine(lApplicationRoot, lPath.Substring(1)));
+
+      var lBasePath := lApplicationRoot;
+      var lRequestDirectory := Context:Request:Path;
+      if length(lRequestDirectory) > 0 then begin
+        lRequestDirectory := lRequestDirectory.Replace("\", "/");
+        if not lRequestDirectory.EndsWith("/") then
+          lRequestDirectory := lRequestDirectory.SubstringToLastOccurrenceOf("/", true);
+        lRequestDirectory := lRequestDirectory.TrimStart("/");
+        if length(lRequestDirectory) > 0 then
+          lBasePath := Path.Combine(lApplicationRoot, lRequestDirectory);
+      end;
+
+      result := Path.GetFullPath(Path.Combine(lBasePath, lPath));
+    end;
+
+    method MapPath(aPath: nullable String; aBaseVirtualDir: nullable String; aAllowCrossAppMapping: Boolean): nullable String;
+    begin
+      if (length(aBaseVirtualDir) = 0) or (assigned(aPath) and (aPath.StartsWith("/") or aPath.StartsWith("~/"))) then
+        exit MapPath(aPath);
+
+      result := MapPath(coalesce(aBaseVirtualDir, "").TrimEnd("/")+"/"+coalesce(aPath, ""));
+    end;
+
     method Transfer(aPath: String);
     begin
       raise new TransferToNewPathException(aPath);
+    end;
+
+    method UrlEncode(aString: nullable String): nullable String;
+    begin
+      result := HttpUtility.UrlEncode(aString);
+    end;
+
+    method UrlDecode(aString: nullable String): nullable String;
+    begin
+      result := HttpUtility.UrlDecode(aString);
+    end;
+
+    method UrlPathEncode(aString: nullable String): nullable String;
+    begin
+      result := HttpUtility.UrlEncode(aString);
     end;
 
     method HtmlEncode(aString: nullable String): nullable String;
@@ -213,12 +268,38 @@ type
     end;
 
     property ScriptTimeout: Integer;
+    property Context: WebContext; readonly;
+    property PhysicalApplicationPath: String read GetPhysicalApplicationPath;
 
   assembly
 
-    constructor(aWebServer: WebServer);
+    constructor(aWebServer: WebServer; aContext: WebContext);
     begin
+      WebServer := aWebServer;
+      Context := aContext;
+    end;
 
+  private
+
+    property WebServer: WebServer; readonly;
+
+    method GetPhysicalApplicationPath: String;
+    begin
+      var lPageAbsolutePath := Context:Page:AbsolutePath;
+      if length(lPageAbsolutePath) = 0 then
+        exit Environment.CurrentDirectory;
+
+      var lRelativePath := Context:Page:RelativePath;
+      if length(lRelativePath) > 0 then begin
+        lRelativePath := lRelativePath.Replace("\", "/");
+        if lRelativePath.StartsWith("~/") then begin
+          var lRelativeFilePath := lRelativePath.Substring(2).Replace("/", Path.DirectorySeparatorChar.ToString);
+          if lPageAbsolutePath.EndsWith(lRelativeFilePath) then
+            exit lPageAbsolutePath.Substring(0, length(lPageAbsolutePath)-length(lRelativeFilePath)).TrimEnd(Path.DirectorySeparatorChar);
+        end;
+      end;
+
+      result := Path.GetDirectoryName(lPageAbsolutePath);
     end;
 
   end;

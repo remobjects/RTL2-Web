@@ -1,0 +1,8 @@
+﻿<%@ Master Language="Oxygene" MasterPageFile="~/NestedBase.master" AutoEventWireup="true" Title="Nested Child" %>
+
+<asp:Content ID="HeaderContent" ContentPlaceHolderID="Header" Runat="Server">custom-header</asp:Content>
+<asp:Content ID="BodyContent" ContentPlaceHolderID="Body" Runat="Server">
+child-start
+<asp:ContentPlaceHolder ID="Content" runat="server" />
+child-end
+</asp:Content>

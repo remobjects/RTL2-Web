@@ -35,6 +35,12 @@ request-secure=<%=Request.IsSecureConnection%>
 request-referrer=<%=Request.UrlReferrer:ToAbsoluteString%>
 request-accept=<%=lAcceptType%>
 request-language=<%=lUserLanguage%>
+server-html=<%=Server.HtmlEncode("<server>")%>
+server-url=<%=Server.UrlEncode("one two")%>
+server-mappath=<%=Server.MapPath("~/Static/hello.txt").Replace("\", "/")%>
+context-server-mappath=<%=System.Web.HttpContext.Current.Server.MapPath("/Static/hello.txt").Replace("\", "/")%>
+request-physical-application-path=<%=Request.PhysicalApplicationPath.Replace("\", "/")%>
+request-mappath=<%=Request.MapPath("Static/hello.txt").Replace("\", "/")%>
 header-user-agent=<%=Request.Headers["User-Agent"]%>
 header-user-agent-lower=<%=Request.Headers["user-agent"]%>
 header-custom=<%=Request.Headers["X-Test-Header"]%>

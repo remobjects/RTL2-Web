@@ -98,6 +98,13 @@ type
         Assert.IsTrue(lPage.Contains("params-server=127.0.0.1"));
         Assert.IsTrue(lPage.Contains("params-default=hello world"));
         Assert.IsTrue(lPage.Contains("context-current-query=hello world"));
+        Assert.IsTrue(lPage.Contains("server-html=&lt;server&gt;"));
+        Assert.IsTrue(lPage.Contains("server-url=one%20two"));
+        Assert.IsTrue(lPage.Contains("server-mappath="));
+        Assert.IsTrue(lPage.Contains("Tests/TestSite/Static/hello.txt"));
+        Assert.IsTrue(lPage.Contains("context-server-mappath="));
+        Assert.IsTrue(lPage.Contains("request-physical-application-path="));
+        Assert.IsTrue(lPage.Contains("request-mappath="));
         Assert.IsTrue(lPage.Contains("session=1"));
         Assert.IsTrue(lPage.Contains("application=hello world"));
         Assert.IsTrue(lPage.Contains("control=from-control"));
@@ -117,6 +124,21 @@ type
         Assert.AreEqual(GetString("/Ping.ashx?value=ok"), "handler=ok");
         Assert.AreEqual(GetString("/Ping.ashx?value=ok&current=1"), "current=ok");
         Assert.IsTrue(GetString("/Static/hello.txt").StartsWith("hello from embedded resource"));
+
+        var lNestedPage := GetString("/Nested.aspx");
+        Assert.IsTrue(lNestedPage.Contains("base-start"));
+        Assert.IsTrue(lNestedPage.Contains("custom-header"));
+        Assert.IsTrue(lNestedPage.Contains("child-start"));
+        Assert.IsTrue(lNestedPage.Contains("page-content"));
+        Assert.IsTrue(lNestedPage.Contains("child-end"));
+        Assert.IsTrue(lNestedPage.Contains("base-end"));
+        Assert.IsFalse(lNestedPage.Contains("default-header"));
+
+        var lNestedFallbackPage := GetString("/NestedFallback.aspx");
+        Assert.IsTrue(lNestedFallbackPage.Contains("base-start"));
+        Assert.IsTrue(lNestedFallbackPage.Contains("default-header"));
+        Assert.IsTrue(lNestedFallbackPage.Contains("fallback-body"));
+        Assert.IsTrue(lNestedFallbackPage.Contains("base-end"));
       finally
         StopTestSite(lProcess);
       end;

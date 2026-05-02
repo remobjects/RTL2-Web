@@ -75,8 +75,16 @@ type
     //method MapImageCoordinates(imageFieldName: String): array of Integer; public;
     //method MapRawImageCoordinates(imageFieldName: String): array of Double; public;
     //method SaveAs(filename: String; includeHeaders: Boolean); public;
-    //method MapPath(virtualPath: String; baseVirtualDir: String; allowCrossAppMapping: Boolean): String; public;
-    //method MapPath(virtualPath: String): String; public;
+    method MapPath(aVirtualPath: nullable String; aBaseVirtualDir: nullable String; aAllowCrossAppMapping: Boolean): nullable String; public;
+    begin
+      result := Page:Context:Server:MapPath(aVirtualPath, aBaseVirtualDir, aAllowCrossAppMapping);
+    end;
+
+    method MapPath(aVirtualPath: nullable String): nullable String; public;
+    begin
+      result := Page:Context:Server:MapPath(aVirtualPath);
+    end;
+
     //method InsertEntityBody; public;
     //method InsertEntityBody(buffer: array of Byte; offset: Integer; count: Integer); public;
     //method GetBufferlessInputStream(disableMaxRequestLength: Boolean): System.IO.Stream; public;
@@ -116,7 +124,7 @@ type
     //property PathInfo: String read Page.Path;
     //property PhysicalPath: String read Page.AbsolutePath
     //property ApplicationPath: String; readonly; public;
-    property PhysicalApplicationPath: String; readonly; public;
+    property PhysicalApplicationPath: nullable String read Page:Context:Server:PhysicalApplicationPath; public;
     property UserAgent: nullable String read fServerVariables["HTTP_USER_AGENT"];
     property UserLanguages: array of String read SplitHeaderValues(Headers["Accept-Language"]);
     property Browser: WebBrowserCapabilities; public;
