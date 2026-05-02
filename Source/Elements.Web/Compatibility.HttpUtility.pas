@@ -16,12 +16,23 @@ type
 
     method HtmlEncode(aString: nullable String): nullable String;
     begin
-      {$WARNING Not implemented}
+      if not assigned(aString) then
+        exit;
+
+      result := aString.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("""", "&quot;");
     end;
 
     method HtmlDecode(aString: nullable String): nullable String;
     begin
-      {$WARNING Not implemented}
+      if not assigned(aString) then
+        exit;
+
+      result := aString.Replace("&quot;", """").Replace("&gt;", ">").Replace("&lt;", "<").Replace("&amp;", "&");
+    end;
+
+    method HtmlAttributeEncode(aString: nullable String): nullable String;
+    begin
+      raise new NotImplementedException(#"HtmlAttributeEncode is not implemented yet");
     end;
 
   end;

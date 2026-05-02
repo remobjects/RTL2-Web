@@ -1,7 +1,6 @@
 ﻿namespace RemObjects.Elements.Web;
 
 uses
-  RemObjects.InternetPack,
   RemObjects.Elements.RTL.Reflection;
 
 type
@@ -180,12 +179,25 @@ type
 
   Application = public static class
   public
-    property Values[aName: String]: Object read nil write nil; default;
-    property Keys: sequence of String read nil;
+
+    property Values[aName: String]: nullable Object read locking fMonitor do fValues[aName] write SetValue; default;
+    property Keys: sequence of String read locking fMonitor do fValues.Keys.UniqueCopy;
 
     method RemoveAll;
     begin
+      locking fMonitor do
+        fValues.RemoveAll;
+    end;
 
+  private
+
+    class var fValues := new Dictionary<String,Object>; readonly;
+    class var fMonitor := new Monitor; readonly;
+
+    class method SetValue(aName: String; aValue: nullable Object);
+    begin
+      locking fMonitor do
+        fValues[aName] := aValue;
     end;
   end;
 

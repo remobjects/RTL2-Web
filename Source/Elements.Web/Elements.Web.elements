@@ -7,7 +7,7 @@
     <OutputType>StaticLibrary</OutputType>
     <AssemblyName>Elements.Web</AssemblyName>
     <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
-    <DefaultUses>RemObjects.Elements.RTL</DefaultUses>
+    <DefaultUses>RemObjects.Elements.RTL;RemObjects.InternetPack.*</DefaultUses>
     <OutputPathUsesSDKNames>True</OutputPathUsesSDKNames>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -51,9 +51,18 @@
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
     </Reference>
-    <Reference Include="Elements" />
-    <Reference Include="Echoes" />
-    <Reference Include="RemObjects.InternetPack" />
+    <Reference Include="Elements">
+      <Private>True</Private>
+      <HintPath>\Users\mh\Code\RemObjects\RTL2\Bin\Echoes\NET\Elements.dll</HintPath>
+    </Reference>
+    <Reference Include="Echoes">
+      <Private>True</Private>
+      <HintPath>\Users\mh\Code\RemObjects\RTL2\Bin\Echoes\NET\Echoes.dll</HintPath>
+    </Reference>
+    <Reference Include="RemObjects.InternetPack">
+      <Private>True</Private>
+      <HintPath>\Users\mh\Code\RemObjects\internetpack\Bin\Debug\Echoes\NET\RemObjects.InternetPack.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup Condition=" '$(Target)' == 'Echoes.Standard' ">
     <Reference Include="Elements" />
@@ -89,6 +98,7 @@
     <Compile Include="EspServer.pas" />
     <Compile Include="Compatibility.pas" />
     <Compile Include="Compatibility.HttpUtility.pas" />
+    <Compile Include="EspNameValueCollection.pas" />
     <Compile Include="EspCookies.pas" />
     <Compile Include="Exceptions.pas" />
     <Compile Include="EspSessions.pas" />

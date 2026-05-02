@@ -16,6 +16,7 @@ type
 
   WebCookie = public class(ImmutableWebCookie)
   public
+    property Name: nullable String read assembly write;
     property Domain: nullable String;
     property Path: nullable String;
     property Secure: Boolean;
@@ -57,19 +58,20 @@ type
         var lSplit := c.SplitAtFirstOccurrenceOf("=");
         if lSplit.Count = 2 then begin
           var lCookie := new WebCookie;
-          fCookies[lSplit[0].Trim] := lCookie;
+          lCookie.Name := WebNameValueCollection.DecodeFormValue(lSplit[0].Trim);
+          fCookies[lCookie.Name] := lCookie;
           //Log($"got cookie '{lSplit[0].Trim}'");
 
           var lValues := lSplit[1].Trim.Split("&");
           if (lValues.Count = 1) and not lSplit[1].Contains("=") then begin
-            lCookie[""] := lSplit[1].Trim;
+            lCookie[""] := WebNameValueCollection.DecodeFormValue(lSplit[1].Trim);
             //Log($"got single cookie value '{lSplit[1].Trim}'");
           end
           else begin
             for each v in lValues do begin
               var lSplitValue := v.SplitAtFirstOccurrenceOf("=");
               if lSplitValue.Count = 2 then begin
-                lCookie[lSplitValue[0].Trim] := lSplitValue[1].Trim;
+                lCookie[WebNameValueCollection.DecodeFormValue(lSplitValue[0].Trim)] := WebNameValueCollection.DecodeFormValue(lSplitValue[1].Trim);
                 //Log($"got cookie named value '{lSplitValue[0].Trim}'='{lSplitValue[1].Trim}'");
               end;
             end;
@@ -93,12 +95,12 @@ type
           if j > 0 then
             lString.Append("&");
           if (v = "") and (lCookie.Values.Count = 1)  then begin
-            lString.Append(lCookie.Values[v]) // review this
+            lString.Append(Url.AddPercentEncodingsToPath(lCookie.Values[v])) // review this
           end
           else begin
-            lString.Append(v);
+            lString.Append(Url.AddPercentEncodingsToPath(v));
             lString.Append("=");
-            lString.Append(lCookie.Values[v]) // encode?
+            lString.Append(Url.AddPercentEncodingsToPath(lCookie.Values[v]))
           end;
         end;
 
@@ -143,7 +145,8 @@ type
 
     method &Add(aCookie: WebCookie);
     begin
-
+      if assigned(aCookie) and assigned(aCookie.Name) then
+        fCookies[aCookie.Name] := aCookie;
     end;
 
   protected
@@ -153,6 +156,7 @@ type
       result := inherited;
       if not assigned(result) then begin
         result := new WebCookie;
+        result.Name := aName;
         fCookies[aName] := result;
       end;
     end;

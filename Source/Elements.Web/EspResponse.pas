@@ -1,9 +1,5 @@
 ﻿namespace RemObjects.Elements.Web;
 
-uses
-  RemObjects.InternetPack,
-  RemObjects.InternetPack.Http;
-
 type
   WebResponse = public class
   public
@@ -16,6 +12,7 @@ type
 
     property HttpServerResponse: HttpServerResponse; readonly;
     property Encoding: Encoding := Encoding.UTF8;
+    property TrySkipIisCustomErrors: Boolean; // ignored
 
     //
     // Writing content
@@ -25,7 +22,7 @@ type
     begin
       if assigned(aString) then begin
         var lBytes := Encoding.GetBytes(aString) includeBOM(false);
-        HttpServerResponse.ContentStream.Write(lBytes, length(lBytes));
+        HttpServerResponse.ContentStream.Write(lBytes, 0, length(lBytes));
       end;
       //HttpServerResponse.ContentStream.Flush;
       //HttpServerResponse.ContentString := HttpServerResponse.ContentString+aString;
@@ -59,7 +56,7 @@ type
     begin
       //if aShouldReadIntoMemory then begin
         var lBytes := File.ReadBytes(aFileName);
-        HttpServerResponse.ContentStream.Write(lBytes);
+        HttpServerResponse.ContentStream.Write(lBytes, 0, length(lBytes));
       //end
       //else begin
         //using lStream := new FileStream(aFileName, FileOpenMode.ReadOnly) do
@@ -105,7 +102,7 @@ type
 
     method BinaryWrite(buffer: array of Byte); public;
     begin
-      HttpServerResponse.ContentStream.Write(buffer, length(buffer));
+      HttpServerResponse.ContentStream.Write(buffer, 0, length(buffer));
     end;
 
     //method Pics(value: String); public;
@@ -192,7 +189,11 @@ type
     //property SupportsAsyncFlush: Boolean; readonly; public;
     property Cookies: WebCookieCollection; readonly; public;
     //property Headers: System.Collections.Specialized.NameValueCollection; readonly; public;
+    {$IF ROSDK}
+    property StatusCode: Integer read Integer(HttpServerResponse.HttpCode) write begin HttpServerResponse.HttpCode := HttpStatusCode(value); end;
+    {$ELSE}
     property StatusCode: Integer read HttpServerResponse.Code write HttpServerResponse.Code;
+    {$ENDIF}
     //property SubStatusCode: Integer; public;
     //property StatusDescription: String; public;
     //property TrySkipIisCustomErrors: Boolean; public;
@@ -208,7 +209,10 @@ type
     //property IsRequestBeingRedirected: Boolean read assembly write; public;
     //property RedirectLocation: String; public;
     //property Output: System.IO.TextWriter; public;
+    {$IF ROSDK}
+    {$ELSE}
     property OutputStream: Stream read HttpServerResponse.ContentStream;
+    {$ENDIF}
     //property Filter: System.IO.Stream; public;
     //property SuppressContent: Boolean; public;
     //property Status: String; public;

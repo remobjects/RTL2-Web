@@ -1,8 +1,5 @@
 ﻿namespace RemObjects.Elements.Web;
 
-uses
-  RemObjects.InternetPack.Http;
-
 type
   WebRequest = public class
   public
@@ -11,6 +8,7 @@ type
     begin
       HttpServerRequest := aRequest;
       Url := aUrl;
+      fQueryString := new WebNameValueCollection(aRequest.QueryString.ToString);
 
       fServerVariables := new Dictionary<String,String>;
 
@@ -37,6 +35,8 @@ type
 
     property HttpServerRequest: HttpServerRequest; readonly;
     property Page: Page read assembly write;
+
+    property HttpMethod: RemObjects.Elements.RTL.HttpRequestMethod read HttpServerRequest.Header.Mode;
 
     //
     // From System.Web.Request
@@ -99,16 +99,20 @@ type
     property UrlReferrer: Url; readonly; public;
     //property &Params: System.Collections.Specialized.NameValueCollection; readonly; public;
     //property Item[key: String]: String; readonly; public; default;
-    property QueryString[aValue: String]: String read HttpServerRequest.QueryString[aValue];
-    property QueryString: String read HttpServerRequest.QueryString.ToString;
-    //property Form[aValue: String]: String read ""; {$HINT TODO}
-    property Form: ImmutableDictionary<String,String> := LazyLoadForm; readonly; lazy;
+    property QueryString[aValue: String]: nullable String read fQueryString[aValue];
+    property QueryString: WebNameValueCollection read fQueryString;
+    property Form[aValue: String]: nullable String read GetFormValue;
+    property Form: WebNameValueCollection := LazyLoadForm; readonly; lazy;
     property Headers[aValue: String]: String read HttpServerRequest.Header[aValue].Value;
     //property Unvalidated: System.Web.UnvalidatedRequestValues; readonly; public;
     property ServerVariables: ImmutableDictionary<String,String> read fServerVariables;
     property Cookies: ImmutableWebCookieCollection; readonly; public;
     //property Files: System.Web.HttpFileCollection; readonly; public;
+    {$IF ROSDK}
+    {$ELSE}
     property InputStream: Stream read HttpServerRequest.ContentStream;
+    {$ENDIF}
+
     property TotalBytes: nullable Integer read if HttpServerRequest.HasContentLength then HttpServerRequest.ContentLength;
     //property Filter: System.IO.Stream; public;
     //property ClientCertificate: System.Web.HttpClientCertificate; readonly; public;
@@ -119,18 +123,16 @@ type
 
   private
     fServerVariables: Dictionary<String,String>;
+    fQueryString: WebNameValueCollection;
 
-    method LazyLoadForm: ImmutableDictionary<String,String>;
+    method GetFormValue(aValue: String): nullable String;
     begin
-      var lResult := new Dictionary<String,String>;
-      if HttpServerRequest.HasContentLength then begin
-        for each s in HttpServerRequest.ContentString.Split("&") do begin
-          var lSplit := s.SplitAtFirstOccurrenceOf("=");
-          if lSplit.Count = 2 then
-            lResult[lSplit[0]] := lSplit[1]; // decode!?
-        end;
-      end;
-      result := lResult;
+      result := Form.Item[aValue];
+    end;
+
+    method LazyLoadForm: WebNameValueCollection;
+    begin
+      result := new WebNameValueCollection(if HttpServerRequest.HasContentLength then String(HttpServerRequest.ContentString));
     end;
   end;
 

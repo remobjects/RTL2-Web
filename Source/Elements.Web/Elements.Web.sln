@@ -3,6 +3,8 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # RemObjects Fire
 Project("{656346D9-4656-40DA-A068-22D5425D4639}") = "Elements.Web", "Elements.Web.elements", "{19EB550E-1850-4B96-9677-07B444595C7B}"
 EndProject
+Project("{656346D9-4656-40DA-A068-22D5425D4639}") = "Elements.Web.ROSDK", "..\Elements.Web.ROSDK\Elements.Web.ROSDK.elements", "{38FD6097-7F00-459E-B0CC-F13ED68662AD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|AnyCPU = Debug|AnyCPU
@@ -13,6 +15,10 @@ Global
 		{19EB550E-1850-4B96-9677-07B444595C7B}.Debug|AnyCPU.Build.0 = Debug|AnyCPU
 		{19EB550E-1850-4B96-9677-07B444595C7B}.Release|AnyCPU.ActiveCfg = Release|AnyCPU
 		{19EB550E-1850-4B96-9677-07B444595C7B}.Release|AnyCPU.Build.0 = Release|AnyCPU
+		{38FD6097-7F00-459E-B0CC-F13ED68662AD}.Debug|AnyCPU.ActiveCfg = Debug|AnyCPU
+		{38FD6097-7F00-459E-B0CC-F13ED68662AD}.Debug|AnyCPU.Build.0 = Debug|AnyCPU
+		{38FD6097-7F00-459E-B0CC-F13ED68662AD}.Release|AnyCPU.ActiveCfg = Release|AnyCPU
+		{38FD6097-7F00-459E-B0CC-F13ED68662AD}.Release|AnyCPU.Build.0 = Release|AnyCPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

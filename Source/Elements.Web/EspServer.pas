@@ -1,11 +1,5 @@
 ﻿namespace RemObjects.Elements.Web;
 
-uses
-  RemObjects.InternetPack,
-  RemObjects.InternetPack.Http,
-  RemObjects.Elements.Web,
-  RemObjects.Elements.RTL;
-
 type
   WebServer = public class
   public
@@ -28,10 +22,10 @@ type
         if assigned(lObject) then begin
 
           //Log($"{aEventArgs.Request.Path} served via {lObject}");
-          var lHost := aEventArgs.Request.Header["Host"]:Value:SubstringToFirstOccurrenceOf(":");
+          var lHost := String(aEventArgs.Request.Header["Host"]:Value):SubstringToFirstOccurrenceOf(":");
           var lPort := aEventArgs.Connection.Binding.Port;
           var lScheme := "http"; // for now
-          var lUrl := Url.UrlWithComponents(lScheme, lHost, lPort, aEventArgs.Request.Path, nil, nil, nil);
+          var lUrl := Url.UrlWithComponents(lScheme, lHost, lPort, aEventArgs.Request.Path, aEventArgs.Request.QueryString.ToString, nil, nil);
           var lContext := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl), new WebResponse(aEventArgs.Response));
 
           try
@@ -185,12 +179,12 @@ type
 
     method HtmlEncode(aString: nullable String): nullable String;
     begin
-      {$WARNING Not implemented}
+      result := HttpUtility.HtmlEncode(aString);
     end;
 
     method HtmlDecode(aString: nullable String): nullable String;
     begin
-      {$WARNING Not implemented}
+      result := HttpUtility.HtmlDecode(aString);
     end;
 
     property ScriptTimeout: Integer;
