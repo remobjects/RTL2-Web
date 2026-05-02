@@ -184,6 +184,63 @@ type
       end;
     end;
 
+    method ResponseConvenienceMethodsMatchClassicShape;
+    begin
+      var lProcess := StartTestSite;
+      try
+        using lHandler := new System.Net.Http.HttpClientHandler do begin
+          lHandler.AllowAutoRedirect := false;
+
+          using lClient := new System.Net.Http.HttpClient(lHandler) do begin
+            var lWrite := lClient.GetStringAsync(BaseUrl+"/Response.ashx?action=write").GetAwaiter.GetResult;
+            Assert.AreEqual(lWrite, "alpha-42");
+
+            using lRedirect := lClient.GetAsync(BaseUrl+"/Response.ashx?action=redirect").GetAwaiter.GetResult do begin
+              Assert.AreEqual(Integer(lRedirect.StatusCode), 302);
+              Assert.AreEqual(lRedirect.Headers.Location.ToString, "/Ping.ashx?value=redirected");
+              var lBody := lRedirect.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+              Assert.IsTrue(lBody.Contains("after-redirect"));
+            end;
+
+            using lRedirectEnd := lClient.GetAsync(BaseUrl+"/Response.ashx?action=redirect-end").GetAwaiter.GetResult do begin
+              Assert.AreEqual(Integer(lRedirectEnd.StatusCode), 302);
+              var lBody := lRedirectEnd.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+              Assert.IsFalse(lBody.Contains("after-end"));
+            end;
+
+            using lPermanent := lClient.GetAsync(BaseUrl+"/Response.ashx?action=permanent").GetAwaiter.GetResult do begin
+              Assert.AreEqual(Integer(lPermanent.StatusCode), 301);
+              Assert.AreEqual(lPermanent.Headers.Location.ToString, "/Ping.ashx?value=permanent");
+            end;
+
+            using lClear := lClient.GetAsync(BaseUrl+"/Response.ashx?action=clear").GetAwaiter.GetResult do begin
+              var lBody := lClear.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+              Assert.AreEqual(lBody, "after");
+              Assert.IsFalse(lClear.Headers.Contains("X-Test-Clear"));
+            end;
+
+            using lHeaders := lClient.GetAsync(BaseUrl+"/Response.ashx?action=headers").GetAwaiter.GetResult do begin
+              var lBody := lHeaders.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+              Assert.AreEqual(lBody, "new");
+              var lHeaderText := lHeaders.Headers.ToString;
+              Assert.IsTrue(lHeaderText.Contains("X-Test-Header"));
+              Assert.IsTrue(lHeaderText.Contains("one"));
+              Assert.IsTrue(lHeaderText.Contains("two"));
+              Assert.IsTrue(lHeaderText.Contains("X-Test-Replace: new"));
+            end;
+
+            using lStatus := lClient.GetAsync(BaseUrl+"/Response.ashx?action=status").GetAwaiter.GetResult do begin
+              Assert.AreEqual(Integer(lStatus.StatusCode), 404);
+              var lBody := lStatus.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+              Assert.AreEqual(lBody, "NotFound");
+            end;
+          end;
+        end;
+      finally
+        StopTestSite(lProcess);
+      end;
+    end;
+
   end;
 
 end.

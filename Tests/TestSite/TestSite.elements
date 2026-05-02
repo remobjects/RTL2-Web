@@ -54,6 +54,7 @@
     <None Include="Site.master" />
     <None Include="Controls\EchoControl.ascx" />
     <None Include="Ping.ashx" />
+    <None Include="Response.ashx" />
     <EmbeddResource Include="Static\hello.txt">
       <IsWebResource>True</IsWebResource>
       <LogicalName>RemObjects.Elements.Web.Tests.TestSite.Static.hello.txt</LogicalName>

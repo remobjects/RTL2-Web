@@ -64,7 +64,7 @@ type
     property HttpServerRequest: HttpServerRequest; readonly;
     property Page: Page read assembly write;
 
-    property HttpMethod: RemObjects.Elements.RTL.HttpRequestMethod read HttpServerRequest.Header.Mode;
+    property HttpMethod: HttpRequestMode read HttpServerRequest.Header.Mode;
 
     //
     // From System.Web.Request

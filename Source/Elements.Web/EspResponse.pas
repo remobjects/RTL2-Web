@@ -108,15 +108,21 @@ type
     //method Pics(value: String); public;
     method AppendHeader(aName: String; aValue: String);
     begin
-      HttpServerResponse.Header.SetHeaderValue(aName, aValue);
+      var lHeader := HttpServerResponse.Header[aName];
+      if assigned(lHeader) then begin
+        lHeader.Add(aValue);
+      end
+      else begin
+        HttpServerResponse.Header.SetHeaderValue(aName, aValue);
+      end;
     end;
 
     //method AppendCookie(cookie: System.Web.HttpCookie); public;
     //method SetCookie(cookie: System.Web.HttpCookie); public;
-    //method ClearHeaders;
-    //begin
-      //HttpServerResponse.Header.
-    //end;
+    method ClearHeaders;
+    begin
+      HttpServerResponse.Header := new HttpHeaders;
+    end;
 
     method ClearContent;
     begin
@@ -125,8 +131,8 @@ type
 
     method Clear;
     begin
-      // nedds to clear more? Cookies & co maybe?
-      HttpServerResponse.ContentStream := new MemoryStream;
+      ClearHeaders;
+      ClearContent;
     end;
 
     method Flush;
@@ -137,9 +143,12 @@ type
     method Redirect(aUrl: String; aShouldEndResponse: Boolean);
     begin
       Log($"Redirecting to {aUrl}");
-      HttpServerResponse.HttpCode := HttpStatusCode.MovedPermanently;
+      IsRequestBeingRedirected := true;
+      RedirectLocation := aUrl;
+      HttpServerResponse.HttpCode := HttpStatusCode.Found;
       HttpServerResponse.Header.SetHeaderValue("Location", aUrl);
-      HttpServerResponse.ContentString := $"<head><title>Document PermanentlyMoved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a href=""{aUrl}"">here</a>.</p></body>";
+      ClearContent;
+      Write($"<head><title>Document Moved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a href=""{aUrl}"">here</a>.</p></body>");
       if aShouldEndResponse then
         raise new CleanlyEndResponseException;
     end;
@@ -152,9 +161,12 @@ type
     method RedirectPermanent(aUrl: String; aShouldEndResponse: Boolean);
     begin
       Log($"Redirecting to {aUrl}");
+      IsRequestBeingRedirected := true;
+      RedirectLocation := aUrl;
       HttpServerResponse.HttpCode := HttpStatusCode.MovedPermanently;
       HttpServerResponse.Header.SetHeaderValue("Location", aUrl);
-      HttpServerResponse.ContentString := $"<head><title>Document Moved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a href=""{aUrl}"">here</a>.</p></body>";
+      ClearContent;
+      Write($"<head><title>Document Moved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a href=""{aUrl}"">here</a>.</p></body>");
       if aShouldEndResponse then
         raise new CleanlyEndResponseException;
     end;
@@ -175,7 +187,12 @@ type
     //method RedirectToRoutePermanent(routeName: String); public;
     //method RedirectToRoutePermanent(routeValues: Object); public;
 
-   method AddHeader(aName: String; aValue: String);
+    method AddHeader(aName: String; aValue: String);
+    begin
+      AppendHeader(aName, aValue);
+    end;
+
+    method SetHeader(aName: String; aValue: String);
     begin
       HttpServerResponse.Header.SetHeaderValue(aName, aValue);
     end;
@@ -188,26 +205,22 @@ type
     //method ApplyAppPathModifier(virtualPath: String): String; public;
     //property SupportsAsyncFlush: Boolean; readonly; public;
     property Cookies: WebCookieCollection; readonly; public;
-    //property Headers: System.Collections.Specialized.NameValueCollection; readonly; public;
-    {$IF ROSDK}
-    property StatusCode: Integer read Integer(HttpServerResponse.HttpCode) write begin HttpServerResponse.HttpCode := HttpStatusCode(value); end;
-    {$ELSE}
-    property StatusCode: Integer read HttpServerResponse.Code write HttpServerResponse.Code;
-    {$ENDIF}
+    property Headers[aName: String]: nullable String read GetHeader write SetHeader;
+    property StatusCode: Integer read Integer(HttpServerResponse.HttpCode) write SetStatusCode;
     //property SubStatusCode: Integer; public;
-    //property StatusDescription: String; public;
+    property StatusDescription: String read GetStatusDescription write fStatusDescription; public;
     //property TrySkipIisCustomErrors: Boolean; public;
     //property SuppressFormsAuthenticationRedirect: Boolean; public;
     //property BufferOutput: Boolean; public;
-    property ContentType: String read HttpServerResponse.Header["Content-Type"].Value write nil; {$HINT TODO}
+    property ContentType: nullable String read HttpServerResponse.Header.ContentType write HttpServerResponse.Header.ContentType;
     //property Charset: String; public;
     //property ContentEncoding: System.Text.Encoding; public;
     //property HeaderEncoding: System.Text.Encoding; public;
     //property Cache: System.Web.HttpCachePolicy; readonly; public;
     //property IsClientConnected: Boolean; readonly; public;
     //property ClientDisconnectedToken: System.Threading.CancellationToken; readonly; public;
-    //property IsRequestBeingRedirected: Boolean read assembly write; public;
-    //property RedirectLocation: String; public;
+    property IsRequestBeingRedirected: Boolean read assembly write; public;
+    property RedirectLocation: nullable String; public;
     //property Output: System.IO.TextWriter; public;
     {$IF ROSDK}
     {$ELSE}
@@ -220,6 +233,25 @@ type
     //property Expires: Integer; public;
     //property ExpiresAbsolute: System.DateTime; public;
     //property CacheControl: String; public;
+
+  private
+
+    fStatusDescription: nullable String;
+
+    method GetHeader(aName: String): nullable String;
+    begin
+      result := HttpServerResponse.Header.GetHeaderValue(aName);
+    end;
+
+    method SetStatusCode(aValue: Integer);
+    begin
+      HttpServerResponse.HttpCode := HttpStatusCode(aValue);
+    end;
+
+    method GetStatusDescription: String;
+    begin
+      result := coalesce(fStatusDescription, HttpServerResponse.ResponseText);
+    end;
 
   end;
 
