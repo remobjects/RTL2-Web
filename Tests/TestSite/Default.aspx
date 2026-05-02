@@ -7,11 +7,14 @@
   inc(lCount);
   Session["count"] := lCount;
   RemObjects.Elements.Web.Application["last-query"] := Request.QueryString["q"];
-  Response.Cookies["Seen"]["Value"] := "yes";
+  Response.Cookies["Seen"].Value := "yes";
+  Response.Cookies["Flavor"]["kind"] := "chocolate";
 %>
 query=<%=Request.QueryString["q"]%>
 form=<%=Request.Form["name"]%>
 session=<%=lCount%>
 application=<%=RemObjects.Elements.Web.Application["last-query"]%>
+seen=<%=Request.Cookies["Seen"]:Value%>
+flavor=<%=Request.Cookies["Flavor"]:Values["kind"]%>
 <test:EchoControl ID="Echo" runat="server" Message="from-control" />
 </asp:Content>

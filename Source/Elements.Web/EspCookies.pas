@@ -6,6 +6,7 @@ uses
 type
   ImmutableWebCookie = public class
   public
+    property Value: nullable String read Values[""]; virtual;
     property Values: ImmutableDictionary<String,String> read fValues;
     property Values[aName: not nullable String]: nullable String read fValues[aName]; virtual; default;
     property Count: Integer read fValues.Count;
@@ -22,6 +23,7 @@ type
     property Secure: Boolean;
     property HttpOnly: Boolean;
     property Expires: DateTime;
+    property Value: nullable String read Values[""] write Values[""]; override;
     property Values[aName: not nullable String]: nullable String read fValues[aName] write fValues[aName]; override; default;
   end;
 
@@ -31,6 +33,15 @@ type
 
   ImmutableWebCookieCollection = public class
   public
+
+    constructor;
+    begin
+    end;
+
+    constructor(aCookieHeader: nullable String);
+    begin
+      LoadCookieHeader(aCookieHeader);
+    end;
 
     property Cookies[aName: String]: nullable WebCookie read GetCookie; virtual; default;
     property Count: Integer read fCookies.Count;
@@ -45,13 +56,7 @@ type
       result := fCookies[aName];
     end;
 
-  assembly
-
-    constructor;
-    begin
-    end;
-
-    constructor(aCookieHeader: nullable String);
+    method LoadCookieHeader(aCookieHeader: nullable String);
     begin
       //Log($" reading CookieHeader {aCookieHeader}");
       for each c in aCookieHeader.Split(";") do begin
@@ -79,6 +84,8 @@ type
         end;
       end;
     end;
+
+  public
 
     method GetCookieHeaderString: String;
     begin
@@ -151,6 +158,10 @@ type
   WebCookieCollection = public class(ImmutableWebCookieCollection)
   public
 
+    constructor;
+    begin
+    end;
+
     //property Cookies[aName: String]: nullable WebCookie read GetCookie write SetCookie; override; default;
 
     method &Add(aCookie: WebCookie);
@@ -172,9 +183,6 @@ type
     end;
 
     //method SetCookie(aName: not nullable String
-
-  assembly
-
 
   end;
 end.

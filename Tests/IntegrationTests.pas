@@ -113,6 +113,28 @@ type
       end;
     end;
 
+    method RequestCookiesRoundTripFromResponseCookies;
+    begin
+      var lProcess := StartTestSite;
+      try
+        using lHandler := new System.Net.Http.HttpClientHandler do begin
+          lHandler.CookieContainer := new System.Net.CookieContainer;
+
+          using lClient := new System.Net.Http.HttpClient(lHandler) do begin
+            var lFirstPage := GetString(lClient, "/?q=cookie");
+            var lSecondPage := GetString(lClient, "/?q=cookie");
+
+            Assert.IsTrue(lFirstPage.Contains("seen="));
+            Assert.IsTrue(lFirstPage.Contains("flavor="));
+            Assert.IsTrue(lSecondPage.Contains("seen=yes"));
+            Assert.IsTrue(lSecondPage.Contains("flavor=chocolate"));
+          end;
+        end;
+      finally
+        StopTestSite(lProcess);
+      end;
+    end;
+
   end;
 
 end.
