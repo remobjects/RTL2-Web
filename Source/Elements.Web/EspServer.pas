@@ -1,5 +1,8 @@
 ﻿namespace RemObjects.Elements.Web;
 
+uses
+  System.Net;
+
 type
   WebServer = public class
   public
@@ -24,9 +27,11 @@ type
           //Log($"{aEventArgs.Request.Path} served via {lObject}");
           var lHost := String(aEventArgs.Request.Header["Host"]:Value):SubstringToFirstOccurrenceOf(":");
           var lPort := aEventArgs.Connection.Binding.Port;
+          with matching lLocalEndPoint := IPEndPoint(aEventArgs.Connection.LocalEndPoint) do
+            lPort := lLocalEndPoint.Port;
           var lScheme := "http"; // for now
           var lUrl := Url.UrlWithComponents(lScheme, lHost, lPort, aEventArgs.Request.Path, aEventArgs.Request.QueryString.ToString, nil, nil);
-          var lContext := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl), new WebResponse(aEventArgs.Response));
+          var lContext := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl, aEventArgs.Connection.RemoteEndPoint, aEventArgs.Connection.LocalEndPoint), new WebResponse(aEventArgs.Response));
 
           try
 
@@ -44,15 +49,17 @@ type
             else begin
               aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
               //aEventArgs.Response.Header["Content-Type"] := "text/html";
-              aEventArgs.Response.HttpCode := HttpStatusCode.InternalServerError;
+              aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.InternalServerError;
               aEventArgs.Response.ContentString := $"<h1>{Integer(aEventArgs.Response.HttpCode)} Internal Error.</h1><p>Unexpected/unsupported class {typeOf(lObject)} for path {aEventArgs.Request.Path}</p>";
             end;
 
-            for each lCookieHeader in lContext.Response.Cookies.GetCookieHeaderStrings index i do begin
-              if i = 0 then
+            var lCookieIndex := 0;
+            for each lCookieHeader in lContext.Response.Cookies.GetCookieHeaderStrings do begin
+              if lCookieIndex = 0 then
                 lContext.Response.HttpServerResponse.Header.SetHeaderValue("Set-Cookie", lCookieHeader)
               else
                 lContext.Response.HttpServerResponse.Header["Set-Cookie"].Add(lCookieHeader);
+              inc(lCookieIndex);
             end;
             aEventArgs.Response.ContentStream.Seek(0, SeekOrigin.Begin);
 
@@ -71,7 +78,7 @@ type
           if assigned(lRedirect) then begin
 
             Log($"{aEventArgs.Request.Path} redirected to {lRedirect}");
-            aEventArgs.Response.HttpCode := HttpStatusCode.MovedPermanently;
+            aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.MovedPermanently;
             aEventArgs.Response.Header.SetHeaderValue("Location", lRedirect);
             aEventArgs.Response.ContentString := $"<head><title>Document Moved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a hrwf=""{lRedirect}"">here</a>.</p></body>";
 
@@ -92,7 +99,7 @@ type
                   Log($"{aEventArgs.Request.Path} resource 404");
                   aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
                   //aEventArgs.Response.Header["Content-Type"] := "text/html";
-                  aEventArgs.Response.HttpCode := HttpStatusCode.NotFound;
+                  aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.NotFound;
                   aEventArgs.Response.ContentString := $"<h1>404 Embedded resource Not found.</h1> <tt>{aEventArgs.Request.Path}</tt>";
                 end;
               end
@@ -107,7 +114,7 @@ type
               if not RunError(aEventArgs, 404) then begin
                 aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
                 //aEventArgs.Response.Header["Content-Type"] := "text/html";
-                aEventArgs.Response.HttpCode := HttpStatusCode.NotFound;
+                aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.NotFound;
                 aEventArgs.Response.ContentString := $"<h1>404 Not found.</h1> <tt>{aEventArgs.Request.Path}</tt>";
               end;
 
@@ -119,7 +126,7 @@ type
         on E: Exception do begin
           aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
           //aEventArgs.Response.Header["Content-Type"] := "text/html";
-          aEventArgs.Response.HttpCode := HttpStatusCode.InternalServerError;
+          aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.InternalServerError;
           aEventArgs.Response.ContentString := $"<h1>{Integer(aEventArgs.Response.HttpCode)} Internal Error.</h1> <tt>{aEventArgs.Request.Path}</tt>"+RenderException(E);
         end;
       end;
@@ -132,7 +139,7 @@ type
         var lUrl := Url.UrlWithComponents("http", "localhost", 8000, lPath, nil, nil, nil);
         with matching lPage := Page(PageFactory:DoFindClassForPath(e.Request.Path)) do begin
           Log($"{e.Request.Path} error {aCode} served via {lPage}");
-          lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(e.Request, lUrl), new WebResponse(e.Response));
+          lPage.Context := new WebContext(new RemObjects.Elements.Web.WebRequest(e.Request, lUrl, e.Connection.RemoteEndPoint, e.Connection.LocalEndPoint), new WebResponse(e.Response));
           lPage.Context.Request.Page := lPage;
           lPage.RenderControl(nil);
           e.Response.ContentStream.Seek(0, SeekOrigin.Begin);

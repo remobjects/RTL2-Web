@@ -8,14 +8,25 @@ type
     begin
     end;
 
+    constructor(aCaseInsensitive: Boolean);
+    begin
+      fCaseInsensitive := aCaseInsensitive;
+    end;
+
     constructor(aEncodedValues: nullable String);
     begin
       ParseUrlEncodedValues(aEncodedValues);
     end;
 
+    constructor(aEncodedValues: nullable String; aCaseInsensitive: Boolean);
+    begin
+      fCaseInsensitive := aCaseInsensitive;
+      ParseUrlEncodedValues(aEncodedValues);
+    end;
+
     method Add(aName: nullable String; aValue: nullable String);
     begin
-      var lName := coalesce(aName, "");
+      var lName := NormalizeName(aName);
       if fValues.ContainsKey(lName) then begin
         if assigned(aValue) then
           fValues[lName] := coalesce(fValues[lName], "")+","+aValue;
@@ -25,13 +36,18 @@ type
       end;
     end;
 
+    method &Set(aName: nullable String; aValue: nullable String);
+    begin
+      fValues[NormalizeName(aName)] := aValue;
+    end;
+
     method Clear;
     begin
       fValues.RemoveAll;
       fRawValue := nil;
     end;
 
-    property Item[aName: not nullable String]: nullable String read fValues[aName]; default;
+    property Item[aName: not nullable String]: nullable String read GetValue(aName); default;
     property Count: Integer read fValues.Count;
     property Keys: sequence of String read fValues.Keys;
     property Values: ImmutableDictionary<String,String> read fValues;
@@ -46,6 +62,19 @@ type
 
     fValues := new Dictionary<String,String>;
     fRawValue: nullable String;
+    fCaseInsensitive: Boolean;
+
+    method NormalizeName(aName: nullable String): String;
+    begin
+      result := coalesce(aName, "");
+      if fCaseInsensitive then
+        result := result.ToUpperInvariant;
+    end;
+
+    method GetValue(aName: not nullable String): nullable String;
+    begin
+      result := fValues[NormalizeName(aName)];
+    end;
 
     method ParseUrlEncodedValues(aEncodedValues: nullable String);
     begin

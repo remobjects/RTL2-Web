@@ -16,5 +16,21 @@ session=<%=lCount%>
 application=<%=RemObjects.Elements.Web.Application["last-query"]%>
 seen=<%=Request.Cookies["Seen"]:Value%>
 flavor=<%=Request.Cookies["Flavor"]:Values["kind"]%>
+header-user-agent=<%=Request.Headers["User-Agent"]%>
+header-user-agent-lower=<%=Request.Headers["user-agent"]%>
+header-custom=<%=Request.Headers["X-Test-Header"]%>
+server-http-host=<%=Request.ServerVariables["HTTP_HOST"]%>
+server-name=<%=Request.ServerVariables["SERVER_NAME"]%>
+server-port=<%=Request.ServerVariables["SERVER_PORT"]%>
+server-method=<%=Request.ServerVariables["REQUEST_METHOD"]%>
+server-query=<%=Request.ServerVariables["QUERY_STRING"]%>
+server-path=<%=Request.ServerVariables["PATH_INFO"]%>
+server-script-name=<%=Request.ServerVariables["SCRIPT_NAME"]%>
+server-url=<%=Request.ServerVariables["URL"]%>
+server-user-agent=<%=Request.ServerVariables["HTTP_USER_AGENT"]%>
+server-name-lower=<%=Request.ServerVariables["server_name"]%>
+server-https=<%=Request.ServerVariables["HTTPS"]%>
+server-remote-addr=<%=Request.ServerVariables["REMOTE_ADDR"]%>
+server-local-addr=<%=Request.ServerVariables["LOCAL_ADDR"]%>
 <test:EchoControl ID="Echo" runat="server" Message="from-control" />
 </asp:Content>

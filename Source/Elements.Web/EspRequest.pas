@@ -1,29 +1,57 @@
 ﻿namespace RemObjects.Elements.Web;
 
+uses
+  System.Net;
+
 type
   WebRequest = public class
   public
 
     constructor(aRequest: HttpServerRequest; aUrl: Url);
     begin
+      constructor(aRequest, aUrl, nil, nil);
+    end;
+
+    constructor(aRequest: HttpServerRequest; aUrl: Url; aRemoteEndPoint: nullable EndPoint; aLocalEndPoint: nullable EndPoint);
+    begin
       HttpServerRequest := aRequest;
       Url := aUrl;
       fQueryString := new WebNameValueCollection(aRequest.QueryString.ToString);
 
-      fServerVariables := new Dictionary<String,String>;
+      fHeaders := new WebNameValueCollection(true);
+      fServerVariables := new WebNameValueCollection(true);
 
-      for each h in aRequest.Header do
-        fServerVariables[$"HTTP_{h.Name.ToUpperInvariant.Replace("-","_")}"] := h.Value;
-      // override, as Http Header has Host and Port combined
-      fServerVariables["HTTP_HOST"] := aUrl.Host;
-      fServerVariables["HTTP_PORT"] := aUrl.Port.ToString;
+      for each h in aRequest.Header do begin
+        fHeaders.Add(h.Name, h.Value);
+        fServerVariables.Set($"HTTP_{h.Name.ToUpperInvariant.Replace("-","_")}", h.Value);
+      end;
 
-      fServerVariables["QUERY_STRING"] := QueryString.ToString;
-      fServerVariables["REQUEST_METHOD"] := aRequest.Header.RequestType;
-      fServerVariables["PATH_INFO"] := aUrl.Path;
+      var lHostHeader := coalesce(fHeaders["Host"], aUrl.Host);
+      fServerVariables.Set("HTTP_HOST", lHostHeader);
+      fServerVariables.Set("HTTP_PORT", aUrl.Port.ToString);
 
-      fServerVariables["SERVER_NAME"] := aUrl.Host; // always same as HTTP_HOST
-      fServerVariables["SERVER_SOFTWARE"] := $"RemObjects Elements Server Pages (running on {Environment.Platform})";
+      fServerVariables.Set("QUERY_STRING", QueryString.ToString);
+      fServerVariables.Set("REQUEST_METHOD", aRequest.Header.RequestType);
+      fServerVariables.Set("PATH_INFO", aUrl.Path);
+      fServerVariables.Set("SCRIPT_NAME", aUrl.Path);
+      fServerVariables.Set("URL", aUrl.Path);
+
+      fServerVariables.Set("SERVER_NAME", aUrl.Host);
+      fServerVariables.Set("SERVER_PORT", aUrl.Port.ToString);
+      fServerVariables.Set("SERVER_PROTOCOL", "HTTP/1.1");
+      fServerVariables.Set("SERVER_SOFTWARE", $"RemObjects Elements Server Pages (running on {Environment.Platform})");
+      fServerVariables.Set("HTTPS", if aUrl.Scheme = "https" then "on" else "off");
+
+      with matching lRemoteEndPoint := IPEndPoint(aRemoteEndPoint) do begin
+        fServerVariables.Set("REMOTE_ADDR", lRemoteEndPoint.Address.ToString);
+        fServerVariables.Set("REMOTE_HOST", lRemoteEndPoint.Address.ToString);
+        fServerVariables.Set("REMOTE_PORT", lRemoteEndPoint.Port.ToString);
+      end;
+
+      with matching lLocalEndPoint := IPEndPoint(aLocalEndPoint) do begin
+        fServerVariables.Set("LOCAL_ADDR", lLocalEndPoint.Address.ToString);
+        fServerVariables.Set("LOCAL_PORT", lLocalEndPoint.Port.ToString);
+      end;
 
       //for each k in fServerVariables.Keys do
         //Log($"{k} = {fServerVariables[k]}");
@@ -89,11 +117,11 @@ type
     //property PhysicalPath: String read Page.AbsolutePath
     //property ApplicationPath: String; readonly; public;
     property PhysicalApplicationPath: String; readonly; public;
-    property UserAgent: String read fServerVariables["HTTP_USER_AGENT"];
+    property UserAgent: nullable String read fServerVariables["HTTP_USER_AGENT"];
     //property UserLanguages: array of String; readonly; public;
     property Browser: WebBrowserCapabilities; public;
-    property UserHostName: String; readonly; public;
-    property UserHostAddress: String; readonly; public;
+    property UserHostName: nullable String read UserHostAddress; public;
+    property UserHostAddress: nullable String read coalesce(fServerVariables["REMOTE_ADDR"], fServerVariables["HTTP_X_FORWARDED_FOR"]); public;
     property RawUrl: String read Url.ToAbsoluteString; public; // for now
     property Url: Url; readonly; public;
     property UrlReferrer: Url; readonly; public;
@@ -103,9 +131,10 @@ type
     property QueryString: WebNameValueCollection read fQueryString;
     property Form[aValue: String]: nullable String read GetFormValue;
     property Form: WebNameValueCollection := LazyLoadForm; readonly; lazy;
-    property Headers[aValue: String]: String read HttpServerRequest.Header[aValue].Value;
+    property Headers[aValue: String]: nullable String read fHeaders[aValue];
+    property Headers: WebNameValueCollection read fHeaders;
     //property Unvalidated: System.Web.UnvalidatedRequestValues; readonly; public;
-    property ServerVariables: ImmutableDictionary<String,String> read fServerVariables;
+    property ServerVariables: WebNameValueCollection read fServerVariables;
     property Cookies: ImmutableWebCookieCollection; readonly; public;
     //property Files: System.Web.HttpFileCollection; readonly; public;
     {$IF ROSDK}
@@ -122,7 +151,8 @@ type
     //property TimedOutToken: System.Threading.CancellationToken; readonly; public;
 
   private
-    fServerVariables: Dictionary<String,String>;
+    fHeaders: WebNameValueCollection;
+    fServerVariables: WebNameValueCollection;
     fQueryString: WebNameValueCollection;
 
     method GetFormValue(aValue: String): nullable String;

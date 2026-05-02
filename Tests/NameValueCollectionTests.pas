@@ -27,6 +27,17 @@ type
       Assert.AreEqual(lValues.Count, 1);
     end;
 
+    method SupportsCaseInsensitiveLookupWhenRequested;
+    begin
+      var lValues := new WebNameValueCollection(true);
+
+      lValues.Add("User-Agent", "Elements");
+      Assert.AreEqual(lValues["user-agent"], "Elements");
+
+      lValues.Set("SERVER_NAME", "localhost");
+      Assert.AreEqual(lValues["server_name"], "localhost");
+    end;
+
   end;
 
 end.

@@ -60,6 +60,20 @@ type
       result := lResult as not nullable;
     end;
 
+    method SendString(aClient: not nullable System.Net.Http.HttpClient; aPath: not nullable String): not nullable String;
+    begin
+      using lRequest := new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, BaseUrl+aPath) do begin
+        lRequest.Headers.TryAddWithoutValidation("User-Agent", "RTL2WebTests/1.0");
+        lRequest.Headers.TryAddWithoutValidation("X-Test-Header", "header-value");
+
+        using lResponse := aClient.SendAsync(lRequest).GetAwaiter.GetResult do begin
+          var lResult := lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+          Assert.IsNotNil(lResult);
+          result := lResult as not nullable;
+        end;
+      end;
+    end;
+
     method StopTestSite(aProcess: nullable System.Diagnostics.Process);
     begin
       if assigned(aProcess) and not aProcess.HasExited then begin
@@ -129,6 +143,35 @@ type
             Assert.IsTrue(lSecondPage.Contains("seen=yes"));
             Assert.IsTrue(lSecondPage.Contains("flavor=chocolate"));
           end;
+        end;
+      finally
+        StopTestSite(lProcess);
+      end;
+    end;
+
+    method RequestHeadersAndServerVariablesMatchClassicShape;
+    begin
+      var lProcess := StartTestSite;
+      try
+        using lClient := new System.Net.Http.HttpClient do begin
+          var lPage := SendString(lClient, "/?q=headers");
+
+          Assert.IsTrue(lPage.Contains("header-user-agent=RTL2WebTests/1.0"));
+          Assert.IsTrue(lPage.Contains("header-user-agent-lower=RTL2WebTests/1.0"));
+          Assert.IsTrue(lPage.Contains("header-custom=header-value"));
+          Assert.IsTrue(lPage.Contains("server-http-host=127.0.0.1:8001"));
+          Assert.IsTrue(lPage.Contains("server-name=127.0.0.1"));
+          Assert.IsTrue(lPage.Contains("server-port=8001"));
+          Assert.IsTrue(lPage.Contains("server-method=GET"));
+          Assert.IsTrue(lPage.Contains("server-query=q=headers"));
+          Assert.IsTrue(lPage.Contains("server-path=/"));
+          Assert.IsTrue(lPage.Contains("server-script-name=/"));
+          Assert.IsTrue(lPage.Contains("server-url=/"));
+          Assert.IsTrue(lPage.Contains("server-user-agent=RTL2WebTests/1.0"));
+          Assert.IsTrue(lPage.Contains("server-name-lower=127.0.0.1"));
+          Assert.IsTrue(lPage.Contains("server-https=off"));
+          Assert.IsTrue(lPage.Contains("server-remote-addr=127.0.0.1"));
+          Assert.IsTrue(lPage.Contains("server-local-addr=127.0.0.1"));
         end;
       finally
         StopTestSite(lProcess);
