@@ -48,8 +48,12 @@ type
               aEventArgs.Response.ContentString := $"<h1>{Integer(aEventArgs.Response.HttpCode)} Internal Error.</h1><p>Unexpected/unsupported class {typeOf(lObject)} for path {aEventArgs.Request.Path}</p>";
             end;
 
-            if lContext.Response.Cookies.Count > 0 then
-              lContext.Response.HttpServerResponse.Header.SetHeaderValue("Set-Cookie", lContext.Response.Cookies.GetCookieHeaderString);
+            for each lCookieHeader in lContext.Response.Cookies.GetCookieHeaderStrings index i do begin
+              if i = 0 then
+                lContext.Response.HttpServerResponse.Header.SetHeaderValue("Set-Cookie", lCookieHeader)
+              else
+                lContext.Response.HttpServerResponse.Header["Set-Cookie"].Add(lCookieHeader);
+            end;
             aEventArgs.Response.ContentStream.Seek(0, SeekOrigin.Begin);
 
           except

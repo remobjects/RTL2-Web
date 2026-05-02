@@ -84,52 +84,62 @@ type
     begin
       var lString := new StringBuilder;
       for each k in fCookies.Keys index i do begin
-
         if i > 0 then
-          lString.Append(", ");
-
-        lString.Append(k);
-        lString.Append("=");
-        var lCookie := fCookies[k];
-        for each v in lCookie.Values.Keys index j do begin
-          if j > 0 then
-            lString.Append("&");
-          if (v = "") and (lCookie.Values.Count = 1)  then begin
-            lString.Append(Url.AddPercentEncodingsToPath(lCookie.Values[v])) // review this
-          end
-          else begin
-            lString.Append(Url.AddPercentEncodingsToPath(v));
-            lString.Append("=");
-            lString.Append(Url.AddPercentEncodingsToPath(lCookie.Values[v]))
-          end;
-        end;
-
-        if assigned(lCookie.Domain) then begin
-          lString.Append("; ");
-          lString.Append("domain=");
-          lString.Append(lCookie.Domain.ToLowerInvariant);
-        end;
-
-        lString.Append("; ");
-        lString.Append("path=");
-        lString.Append(coalesce(lCookie.Path, "/"));
-
-        if assigned(lCookie.Expires) then begin
-          lString.Append("; ");
-          lString.Append("expires=");
-          lString.Append(lCookie.Expires.ToString("ddd, dd-MMM-yyyy HH:mm:ss UTC"));
-        end;
-
-        if lCookie.Secure then
-          lString.Append("; Secure");
-
-        if lCookie.HttpOnly then
-          lString.Append("; HttpOnly");
-
+          lString.Append(Environment.LineBreak);
+        lString.Append(GetCookieHeaderString(fCookies[k]));
       end;
 
       result := lString.ToString;
       //Log($"set-cookie: {result}");
+    end;
+
+    method GetCookieHeaderStrings: sequence of String;
+    begin
+      result := fCookies.Keys.Select(k -> GetCookieHeaderString(fCookies[k]));
+    end;
+
+    method GetCookieHeaderString(aCookie: not nullable WebCookie): String;
+    begin
+      var lString := new StringBuilder;
+      lString.Append(aCookie.Name);
+      lString.Append("=");
+
+      for each v in aCookie.Values.Keys index j do begin
+        if j > 0 then
+          lString.Append("&");
+        if (v = "") and (aCookie.Values.Count = 1)  then begin
+          lString.Append(Url.AddPercentEncodingsToPath(aCookie.Values[v])) // review this
+        end
+        else begin
+          lString.Append(Url.AddPercentEncodingsToPath(v));
+          lString.Append("=");
+          lString.Append(Url.AddPercentEncodingsToPath(aCookie.Values[v]))
+        end;
+      end;
+
+      if assigned(aCookie.Domain) then begin
+        lString.Append("; ");
+        lString.Append("domain=");
+        lString.Append(aCookie.Domain.ToLowerInvariant);
+      end;
+
+      lString.Append("; ");
+      lString.Append("path=");
+      lString.Append(coalesce(aCookie.Path, "/"));
+
+      if assigned(aCookie.Expires) then begin
+        lString.Append("; ");
+        lString.Append("expires=");
+        lString.Append(aCookie.Expires.ToString("ddd, dd-MMM-yyyy HH:mm:ss UTC"));
+      end;
+
+      if aCookie.Secure then
+        lString.Append("; Secure");
+
+      if aCookie.HttpOnly then
+        lString.Append("; HttpOnly");
+
+      result := lString.ToString;
     end;
 
   end;

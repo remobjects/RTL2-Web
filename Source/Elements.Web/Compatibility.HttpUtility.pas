@@ -11,7 +11,7 @@ type
 
     method UrlDecode(aString: nullable String): nullable String;
     begin
-      result := Url.RemovePercentEncodingsFromPath(aString);
+      result := Url.RemovePercentEncodingsFromPath(aString, true);
     end;
 
     method HtmlEncode(aString: nullable String): nullable String;
