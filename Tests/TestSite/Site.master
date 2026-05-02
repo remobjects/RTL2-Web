@@ -1,0 +1,9 @@
+﻿<%@ Master Language="Oxygene" AutoEventWireup="true" Title="Master" %>
+
+<html>
+  <body>
+    master-start
+    <asp:ContentPlaceHolder ID="Content" runat="server" />
+    master-end
+  </body>
+</html>

@@ -1,0 +1,63 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <PropertyGroup>
+    <ProductVersion>3.5</ProductVersion>
+    <RootNamespace>RemObjects.Elements.Web.Tests.TestSite</RootNamespace>
+    <ProjectGuid>{AAB7F2C7-6F61-41AF-BFD1-39988C8D32F4}</ProjectGuid>
+    <OutputType>Executable</OutputType>
+    <AssemblyName>Elements.Web.TestSite</AssemblyName>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <Mode>Echoes</Mode>
+    <TargetFramework>.NETCore8.0</TargetFramework>
+    <DefaultUses>RemObjects.Elements.RTL</DefaultUses>
+    <EnableASPX>True</EnableASPX>
+    <ESPMode>Standalone</ESPMode>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <Optimize>False</Optimize>
+    <OutputPath>.\Bin\Debug</OutputPath>
+    <ConditionalDefines>DEBUG;TRACE</ConditionalDefines>
+    <GeneratePDB>True</GeneratePDB>
+    <GenerateMDB>True</GenerateMDB>
+    <EnableAsserts>True</EnableAsserts>
+    <CpuType>anycpu</CpuType>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <Optimize>True</Optimize>
+    <OutputPath>.\Bin\Release</OutputPath>
+    <CpuType>anycpu</CpuType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Source\Elements.Web\Elements.Web.elements">
+      <HintPath>..\..\Source\Elements.Web\Bin\Debug\NETStandard2.0\Elements.Web.dll</HintPath>
+      <Project>{19EB550E-1850-4B96-9677-07B444595C7B}</Project>
+      <ProjectFile>..\..\Source\Elements.Web\Elements.Web.elements</ProjectFile>
+      <TargetName>Echoes.Standard</TargetName>
+      <Private>True</Private>
+    </ProjectReference>
+    <Reference Include="Echoes">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Elements">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="RemObjects.InternetPack">
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Default.aspx" />
+    <None Include="Site.master" />
+    <None Include="Controls\EchoControl.ascx" />
+    <None Include="Ping.ashx" />
+    <EmbeddResource Include="Static\hello.txt">
+      <IsWebResource>True</IsWebResource>
+      <LogicalName>RemObjects.Elements.Web.Tests.TestSite.Static.hello.txt</LogicalName>
+    </EmbeddResource>
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath)\RemObjects Software\Elements\RemObjects.Elements.Echoes.targets" />
+</Project>
