@@ -59,6 +59,7 @@
     <None Include="Controls\EchoControl.ascx" />
     <None Include="Ping.ashx" />
     <None Include="Response.ashx" />
+    <None Include="Upload.ashx" />
     <EmbeddResource Include="Static\hello.txt">
       <IsWebResource>True</IsWebResource>
       <LogicalName>RemObjects.Elements.Web.Tests.TestSite.Static.hello.txt</LogicalName>

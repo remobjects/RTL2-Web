@@ -1,7 +1,8 @@
 ﻿namespace RemObjects.Elements.Web;
 
 uses
-  System.Net;
+  System.Net,
+  RemObjects.Elements.RTL.Reflection;
 
 type
   WebServer = public class
@@ -219,9 +220,11 @@ type
       var lRequestDirectory := Context:Request:Path;
       if length(lRequestDirectory) > 0 then begin
         lRequestDirectory := lRequestDirectory.Replace("\", "/");
-        if not lRequestDirectory.EndsWith("/") then
-          lRequestDirectory := lRequestDirectory.SubstringToLastOccurrenceOf("/", true);
-        lRequestDirectory := lRequestDirectory.TrimStart("/");
+        if not lRequestDirectory.EndsWith("/") then begin
+          var lSlash := lRequestDirectory.LastIndexOf("/");
+          lRequestDirectory := if lSlash ≥ 0 then lRequestDirectory.Substring(0, lSlash+1) else "";
+        end;
+        lRequestDirectory := lRequestDirectory.TrimStart('/');
         if length(lRequestDirectory) > 0 then
           lBasePath := Path.Combine(lApplicationRoot, lRequestDirectory);
       end;
@@ -234,7 +237,7 @@ type
       if (length(aBaseVirtualDir) = 0) or (assigned(aPath) and (aPath.StartsWith("/") or aPath.StartsWith("~/"))) then
         exit MapPath(aPath);
 
-      result := MapPath(coalesce(aBaseVirtualDir, "").TrimEnd("/")+"/"+coalesce(aPath, ""));
+      result := MapPath(coalesce(aBaseVirtualDir, "").TrimEnd('/')+"/"+coalesce(aPath, ""));
     end;
 
     method Transfer(aPath: String);
@@ -285,11 +288,11 @@ type
 
     method GetPhysicalApplicationPath: String;
     begin
-      var lPageAbsolutePath := Context:Page:AbsolutePath;
+      var lPageAbsolutePath := GetPageStringProperty("AbsolutePath");
       if length(lPageAbsolutePath) = 0 then
         exit Environment.CurrentDirectory;
 
-      var lRelativePath := Context:Page:RelativePath;
+      var lRelativePath := GetPageStringProperty("RelativePath");
       if length(lRelativePath) > 0 then begin
         lRelativePath := lRelativePath.Replace("\", "/");
         if lRelativePath.StartsWith("~/") then begin
@@ -299,7 +302,34 @@ type
         end;
       end;
 
-      result := Path.GetDirectoryName(lPageAbsolutePath);
+      result := Path.GetParentDirectory(lPageAbsolutePath);
+    end;
+
+    method GetPageStringProperty(aName: not nullable String): nullable String;
+    begin
+      if not assigned(Context:Page) then
+        exit;
+
+      {$IF ECHOES}
+      var lFlags := System.Reflection.BindingFlags.Instance or
+                    System.Reflection.BindingFlags.Public or
+                    System.Reflection.BindingFlags.NonPublic;
+      for each lProperty in Context.Page.GetType.GetProperties(lFlags) do begin
+        if lProperty.Name = aName then begin
+          with matching lValue := String(lProperty.GetValue(Context.Page, nil)) do
+            if length(lValue) > 0 then
+              exit lValue;
+        end;
+      end;
+      {$ELSE}
+      for each lProperty in typeOf(Context.Page).Properties do begin
+        if lProperty.Name = aName then begin
+          with matching lValue := String(lProperty.GetValue(Context.Page, [])) do
+            if length(lValue) > 0 then
+              exit lValue;
+        end;
+      end;
+      {$ENDIF}
     end;
 
   end;

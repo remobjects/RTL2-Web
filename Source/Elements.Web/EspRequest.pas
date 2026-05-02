@@ -144,7 +144,7 @@ type
     //property Unvalidated: System.Web.UnvalidatedRequestValues; readonly; public;
     property ServerVariables: WebNameValueCollection read fServerVariables;
     property Cookies: ImmutableWebCookieCollection; readonly; public;
-    //property Files: System.Web.HttpFileCollection; readonly; public;
+    property Files: WebFileCollection := LazyLoadFiles; readonly; lazy;
     {$IF ROSDK}
     {$ELSE}
     property InputStream: Stream read HttpServerRequest.ContentStream;
@@ -162,6 +162,9 @@ type
     fHeaders: WebNameValueCollection;
     fServerVariables: WebNameValueCollection;
     fQueryString: WebNameValueCollection;
+    fMultipartForm: WebNameValueCollection;
+    fMultipartFiles: WebFileCollection;
+    fParsedMultipart: Boolean;
 
     method GetFormValue(aValue: String): nullable String;
     begin
@@ -170,7 +173,22 @@ type
 
     method LazyLoadForm: WebNameValueCollection;
     begin
+      if IsMultipartForm then begin
+        ParseMultipartFormData;
+        exit fMultipartForm;
+      end;
+
       result := new WebNameValueCollection(if HttpServerRequest.HasContentLength then String(HttpServerRequest.ContentString));
+    end;
+
+    method LazyLoadFiles: WebFileCollection;
+    begin
+      if IsMultipartForm then begin
+        ParseMultipartFormData;
+        exit fMultipartFiles;
+      end;
+
+      result := new WebFileCollection;
     end;
 
     method LazyLoadParams: WebNameValueCollection;
@@ -201,6 +219,135 @@ type
         exit [];
 
       result := aValue.Split(",").Select(v -> v.Trim).Where(v -> length(v) > 0).ToArray;
+    end;
+
+    method IsMultipartForm: Boolean;
+    begin
+      result := coalesce(ContentType, "").ToLowerInvariant.StartsWith("multipart/form-data");
+    end;
+
+    method ParseMultipartFormData;
+    begin
+      if fParsedMultipart then
+        exit;
+
+      fParsedMultipart := true;
+      fMultipartForm := new WebNameValueCollection;
+      fMultipartFiles := new WebFileCollection;
+
+      var lBoundary := GetContentTypeParameter("boundary");
+      if length(lBoundary) = 0 then
+        exit;
+
+      var lBody := BodyAsBytes;
+      if length(lBody) = 0 then
+        exit;
+
+      var lBoundaryBytes := Encoding.UTF8.GetBytes("--"+lBoundary);
+      var lHeaderTerminator := [Byte(13), Byte(10), Byte(13), Byte(10)];
+      var lPosition := FindBytes(lBody, lBoundaryBytes, 0);
+
+      while lPosition ≥ 0 do begin
+        lPosition := lPosition+length(lBoundaryBytes);
+
+        if (lPosition+1 < length(lBody)) and (lBody[lPosition] = Byte(45)) and (lBody[lPosition+1] = Byte(45)) then
+          break;
+
+        if (lPosition+1 < length(lBody)) and (lBody[lPosition] = Byte(13)) and (lBody[lPosition+1] = Byte(10)) then
+          inc(lPosition, 2);
+
+        var lHeaderEnd := FindBytes(lBody, lHeaderTerminator, lPosition);
+        if lHeaderEnd < 0 then
+          break;
+
+        var lHeaders := ParsePartHeaders(new String(CopyBytes(lBody, lPosition, lHeaderEnd-lPosition), Encoding.UTF8));
+        var lContentStart := lHeaderEnd+length(lHeaderTerminator);
+        var lNextBoundary := FindBytes(lBody, lBoundaryBytes, lContentStart);
+        if lNextBoundary < 0 then
+          break;
+
+        var lContentEnd := lNextBoundary;
+        if (lContentEnd ≥ 2) and (lBody[lContentEnd-2] = Byte(13)) and (lBody[lContentEnd-1] = Byte(10)) then
+          dec(lContentEnd, 2);
+
+        var lContent := CopyBytes(lBody, lContentStart, lContentEnd-lContentStart);
+        var lDisposition := lHeaders["Content-Disposition"];
+        var lName := GetHeaderParameter(lDisposition, "name");
+        var lFileName := GetHeaderParameter(lDisposition, "filename");
+
+        if assigned(lFileName) then begin
+          fMultipartFiles.Add(lName, new WebPostedFile(lFileName, lHeaders["Content-Type"], lContent));
+        end
+        else begin
+          fMultipartForm.Add(lName, new String(lContent, Encoding.UTF8));
+        end;
+
+        lPosition := lNextBoundary;
+      end;
+    end;
+
+    method GetContentTypeParameter(aName: not nullable String): nullable String;
+    begin
+      result := GetHeaderParameter(ContentType, aName);
+    end;
+
+    method ParsePartHeaders(aHeaders: not nullable String): WebNameValueCollection;
+    begin
+      result := new WebNameValueCollection(true);
+
+      for each lLine in aHeaders.Replace(#13#10, #10).Split(#10) do begin
+        var lSplit := lLine.SplitAtFirstOccurrenceOf(":");
+        if lSplit.Count = 2 then
+          result.Set(lSplit[0].Trim, lSplit[1].Trim);
+      end;
+    end;
+
+    method GetHeaderParameter(aHeader: nullable String; aName: not nullable String): nullable String;
+    begin
+      if length(aHeader) = 0 then
+        exit;
+
+      var lPrefix := aName.ToLowerInvariant+"=";
+      for each lRawPart in aHeader.Split(";") do begin
+        var lParameter := lRawPart.Trim;
+        if lParameter.ToLowerInvariant.StartsWith(lPrefix) then begin
+          result := lParameter.Substring(length(lPrefix));
+          if (length(result) ≥ 2) and result.StartsWith("""") and result.EndsWith("""") then
+            result := result.Substring(1, length(result)-2);
+          exit;
+        end;
+      end;
+    end;
+
+    method FindBytes(aBytes: not nullable array of Byte; aNeedle: not nullable array of Byte; aStart: Integer): Integer;
+    begin
+      if (length(aNeedle) = 0) or (length(aBytes) < length(aNeedle)) then
+        exit -1;
+
+      for i: Integer := Math.Max(0, aStart) to length(aBytes)-length(aNeedle) do begin
+        var lMatches := true;
+        for j: Integer := 0 to length(aNeedle)-1 do begin
+          if aBytes[i+j] ≠ aNeedle[j] then begin
+            lMatches := false;
+            break;
+          end;
+        end;
+
+        if lMatches then
+          exit i;
+      end;
+
+      result := -1;
+    end;
+
+    method CopyBytes(aBytes: not nullable array of Byte; aStart: Integer; aCount: Integer): array of Byte;
+    begin
+      if aCount ≤ 0 then
+        exit [];
+
+      result := new Byte[aCount];
+      for i: Integer := 0 to aCount-1 do
+        result[i] := aBytes[aStart+i];
     end;
   end;
 

@@ -53,6 +53,34 @@ type
       result := Http.GetString(nil, lRequest);
     end;
 
+    method PostMultipartString(aPath: not nullable String): not nullable String;
+    begin
+      var lBoundary := "----rtl2webtest";
+      var lBody :=
+        "--"+lBoundary+#13#10+
+        "Content-Disposition: form-data; name=""title"""#13#10+
+        #13#10+
+        "Upload Title"#13#10+
+        "--"+lBoundary+#13#10+
+        "Content-Disposition: form-data; name=""sample""; filename=""hello.txt"""#13#10+
+        "Content-Type: text/plain"#13#10+
+        #13#10+
+        "hello upload"#13#10+
+        "--"+lBoundary+"--"#13#10;
+
+      using lClient := new System.Net.Http.HttpClient do begin
+        using lContent := new System.Net.Http.ByteArrayContent(Encoding.UTF8.GetBytes(lBody)) do begin
+          lContent.Headers.TryAddWithoutValidation("Content-Type", "multipart/form-data; boundary="+lBoundary);
+
+          using lResponse := lClient.PostAsync(BaseUrl+aPath, lContent).GetAwaiter.GetResult do begin
+            var lResult := lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+            Assert.IsNotNil(lResult);
+            result := lResult as not nullable;
+          end;
+        end;
+      end;
+    end;
+
     method GetString(aClient: not nullable System.Net.Http.HttpClient; aPath: not nullable String): not nullable String;
     begin
       var lResult := aClient.GetStringAsync(BaseUrl+aPath).GetAwaiter.GetResult;
@@ -124,6 +152,7 @@ type
         Assert.AreEqual(GetString("/Ping.ashx?value=ok"), "handler=ok");
         Assert.AreEqual(GetString("/Ping.ashx?value=ok&current=1"), "current=ok");
         Assert.IsTrue(GetString("/Static/hello.txt").StartsWith("hello from embedded resource"));
+        Assert.AreEqual(PostMultipartString("/Upload.ashx"), "form-title=Upload Title;files=1;key=sample;name=hello.txt;type=text/plain;length=12;stream=12;saved=hello upload");
 
         var lNestedPage := GetString("/Nested.aspx");
         Assert.IsTrue(lNestedPage.Contains("base-start"));

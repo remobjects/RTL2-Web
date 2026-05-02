@@ -100,6 +100,7 @@
     <Compile Include="Compatibility.HttpUtility.pas" />
     <Compile Include="EspNameValueCollection.pas" />
     <Compile Include="EspCookies.pas" />
+    <Compile Include="EspFiles.pas" />
     <Compile Include="Exceptions.pas" />
     <Compile Include="EspSessions.pas" />
   </ItemGroup>

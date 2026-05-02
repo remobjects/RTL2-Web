@@ -11,6 +11,8 @@ type
   System.Web.HttpContext = public WebContext;
   System.Web.HttpServerUtility = public WebServerForContext;
   System.Web.HttpBrowserCapabilities = public WebBrowserCapabilities;
+  System.Web.HttpFileCollection = public WebFileCollection;
+  System.Web.HttpPostedFile = public WebPostedFile;
 
   System.Web.IHttpHandler = public IHttpHandler;
 
