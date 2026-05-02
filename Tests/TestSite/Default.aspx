@@ -16,6 +16,11 @@ session=<%=lCount%>
 application=<%=RemObjects.Elements.Web.Application["last-query"]%>
 seen=<%=Request.Cookies["Seen"]:Value%>
 flavor=<%=Request.Cookies["Flavor"]:Values["kind"]%>
+params-query=<%=Request.Params["q"]%>
+params-form=<%=Request.Params["name"]%>
+params-cookie=<%=Request.Params["Seen"]%>
+params-server=<%=Request.Params["SERVER_NAME"]%>
+params-default=<%=Request["q"]%>
 header-user-agent=<%=Request.Headers["User-Agent"]%>
 header-user-agent-lower=<%=Request.Headers["user-agent"]%>
 header-custom=<%=Request.Headers["X-Test-Header"]%>

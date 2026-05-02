@@ -91,6 +91,9 @@ type
         var lPage := GetString("/?q=hello+world");
         Assert.IsTrue(lPage.Contains("master-start"));
         Assert.IsTrue(lPage.Contains("query=hello world"));
+        Assert.IsTrue(lPage.Contains("params-query=hello world"));
+        Assert.IsTrue(lPage.Contains("params-server=127.0.0.1"));
+        Assert.IsTrue(lPage.Contains("params-default=hello world"));
         Assert.IsTrue(lPage.Contains("session=1"));
         Assert.IsTrue(lPage.Contains("application=hello world"));
         Assert.IsTrue(lPage.Contains("control=from-control"));
@@ -99,6 +102,8 @@ type
         var lPost := PostString("/?q=post", "name=Form+Value");
         Assert.IsTrue(lPost.Contains("query=post"));
         Assert.IsTrue(lPost.Contains("form=Form Value"));
+        Assert.IsTrue(lPost.Contains("params-query=post"));
+        Assert.IsTrue(lPost.Contains("params-form=Form Value"));
 
         Assert.AreEqual(GetString("/Ping.ashx?value=ok"), "handler=ok");
         Assert.IsTrue(GetString("/Static/hello.txt").StartsWith("hello from embedded resource"));
@@ -142,6 +147,7 @@ type
             Assert.IsTrue(lFirstPage.Contains("flavor="));
             Assert.IsTrue(lSecondPage.Contains("seen=yes"));
             Assert.IsTrue(lSecondPage.Contains("flavor=chocolate"));
+            Assert.IsTrue(lSecondPage.Contains("params-cookie=yes"));
           end;
         end;
       finally

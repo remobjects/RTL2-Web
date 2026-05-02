@@ -125,8 +125,8 @@ type
     property RawUrl: String read Url.ToAbsoluteString; public; // for now
     property Url: Url; readonly; public;
     property UrlReferrer: Url; readonly; public;
-    //property &Params: System.Collections.Specialized.NameValueCollection; readonly; public;
-    //property Item[key: String]: String; readonly; public; default;
+    property &Params: WebNameValueCollection := LazyLoadParams; readonly; lazy;
+    property Item[key: String]: nullable String read &Params[key]; default;
     property QueryString[aValue: String]: nullable String read fQueryString[aValue];
     property QueryString: WebNameValueCollection read fQueryString;
     property Form[aValue: String]: nullable String read GetFormValue;
@@ -163,6 +163,28 @@ type
     method LazyLoadForm: WebNameValueCollection;
     begin
       result := new WebNameValueCollection(if HttpServerRequest.HasContentLength then String(HttpServerRequest.ContentString));
+    end;
+
+    method LazyLoadParams: WebNameValueCollection;
+    begin
+      result := new WebNameValueCollection(true);
+
+      AddValuesToParams(result, QueryString);
+      AddValuesToParams(result, Form);
+
+      for each lName in Cookies.Keys do begin
+        var lCookie := Cookies[lName];
+        if assigned(lCookie) then
+          result.Add(lName, lCookie.Value);
+      end;
+
+      AddValuesToParams(result, ServerVariables);
+    end;
+
+    method AddValuesToParams(aParams: not nullable WebNameValueCollection; aValues: not nullable WebNameValueCollection);
+    begin
+      for each lName in aValues.Keys do
+        aParams.Add(lName, aValues[lName]);
     end;
   end;
 
