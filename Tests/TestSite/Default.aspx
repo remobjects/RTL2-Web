@@ -35,12 +35,21 @@ request-secure=<%=Request.IsSecureConnection%>
 request-referrer=<%=Request.UrlReferrer:ToAbsoluteString%>
 request-accept=<%=lAcceptType%>
 request-language=<%=lUserLanguage%>
+request-application-path=<%=Request.ApplicationPath%>
+request-file-path=<%=Request.FilePath%>
+request-current-execution-file-path=<%=Request.CurrentExecutionFilePath%>
+request-current-execution-file-path-extension=<%=Request.CurrentExecutionFilePathExtension%>
+request-app-relative-current-execution-file-path=<%=Request.AppRelativeCurrentExecutionFilePath%>
+request-path-info=<%=Request.PathInfo%>
+request-physical-path=<%=Request.PhysicalPath.Replace("\", "/")%>
 server-html=<%=Server.HtmlEncode("<server>")%>
 server-url=<%=Server.UrlEncode("one two")%>
 server-mappath=<%=Server.MapPath("~/Static/hello.txt").Replace("\", "/")%>
 context-server-mappath=<%=System.Web.HttpContext.Current.Server.MapPath("/Static/hello.txt").Replace("\", "/")%>
 request-physical-application-path=<%=Request.PhysicalApplicationPath.Replace("\", "/")%>
 request-mappath=<%=Request.MapPath("Static/hello.txt").Replace("\", "/")%>
+runtime-app-domain-app-path=<%=System.Web.HttpRuntime.AppDomainAppPath.Replace("\", "/")%>
+runtime-app-domain-app-virtual-path=<%=System.Web.HttpRuntime.AppDomainAppVirtualPath%>
 header-user-agent=<%=Request.Headers["User-Agent"]%>
 header-user-agent-lower=<%=Request.Headers["user-agent"]%>
 header-custom=<%=Request.Headers["X-Test-Header"]%>

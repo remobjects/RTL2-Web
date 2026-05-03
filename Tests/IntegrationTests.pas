@@ -8,14 +8,14 @@ type
   private
 
     const BaseUrl = "http://127.0.0.1:8001";
-    const TestSiteAssembly = "Tests/TestSite/Bin/Debug/Elements.Web.TestSite.dll";
 
     method StartTestSite: System.Diagnostics.Process;
     begin
-      Assert.IsTrue(File.Exists(TestSiteAssembly), "Build Tests/TestSite/TestSite.elements before running integration tests.");
+      var lTestSiteAssembly := GetTestSiteAssemblyPath;
+      Assert.IsTrue(File.Exists(lTestSiteAssembly), "Build Tests/TestSite/TestSite.elements before running integration tests.");
 
-      var lStartInfo := new System.Diagnostics.ProcessStartInfo("dotnet", TestSiteAssembly);
-      lStartInfo.WorkingDirectory := Environment.CurrentDirectory;
+      var lStartInfo := new System.Diagnostics.ProcessStartInfo("dotnet", lTestSiteAssembly);
+      lStartInfo.WorkingDirectory := Path.GetParentDirectory(lTestSiteAssembly);
       lStartInfo.UseShellExecute := false;
       lStartInfo.RedirectStandardOutput := true;
       lStartInfo.RedirectStandardError := true;
@@ -23,6 +23,17 @@ type
       result := System.Diagnostics.Process.Start(lStartInfo);
       Assert.IsNotNil(result);
       Assert.IsTrue(WaitForServer(result), "Test site did not start on http://127.0.0.1:8001.");
+    end;
+
+    method GetTestSiteAssemblyPath: not nullable String;
+    begin
+      {$IF ECHOES}
+      var lBasePath := Path.GetParentDirectory(System.Reflection.Assembly.GetExecutingAssembly.Location);
+      {$ELSE}
+      var lBasePath := Environment.CurrentDirectory;
+      {$ENDIF}
+
+      result := Path.GetFullPath(Path.Combine(lBasePath, "..", "..", "TestSite", "Bin", "Debug", "Elements.Web.TestSite.dll"));
     end;
 
     method WaitForServer(aProcess: not nullable System.Diagnostics.Process): Boolean;
@@ -107,9 +118,27 @@ type
 
     method StopTestSite(aProcess: nullable System.Diagnostics.Process);
     begin
-      if assigned(aProcess) and not aProcess.HasExited then begin
+      if not assigned(aProcess) then
+        exit;
+
+      try
+        if aProcess.HasExited then
+          exit;
+      except
+        on E: System.ComponentModel.Win32Exception do
+          exit;
+        on E: System.InvalidOperationException do
+          exit;
+      end;
+
+      try
         aProcess.Kill(true);
         aProcess.WaitForExit(5000);
+      except
+        on E: System.ComponentModel.Win32Exception do begin
+        end;
+        on E: System.InvalidOperationException do begin
+        end;
       end;
     end;
 
@@ -246,6 +275,29 @@ type
           Assert.IsTrue(lPage.Contains("request-accept=text/html"));
           Assert.IsTrue(lPage.Contains("request-language=en-US"));
         end;
+      finally
+        StopTestSite(lProcess);
+      end;
+    end;
+
+    method RequestPathPropertiesMatchClassicShape;
+    begin
+      var lProcess := StartTestSite;
+      try
+        var lPage := GetString("/?q=paths");
+
+        Assert.IsTrue(lPage.Contains("request-application-path=/"));
+        Assert.IsTrue(lPage.Contains("request-file-path=/Default.aspx"));
+        Assert.IsTrue(lPage.Contains("request-current-execution-file-path=/Default.aspx"));
+        Assert.IsTrue(lPage.Contains("request-current-execution-file-path-extension=.aspx"));
+        Assert.IsTrue(lPage.Contains("request-app-relative-current-execution-file-path=~/Default.aspx"));
+        Assert.IsTrue(lPage.Contains("request-path-info="));
+        Assert.IsTrue(lPage.Contains("request-physical-path="));
+        Assert.IsTrue(lPage.Contains("Tests/TestSite/Default.aspx"));
+        Assert.IsTrue(lPage.Contains("request-physical-application-path="));
+        Assert.IsTrue(lPage.Contains("Tests/TestSite"));
+        Assert.IsTrue(lPage.Contains("runtime-app-domain-app-path="));
+        Assert.IsTrue(lPage.Contains("runtime-app-domain-app-virtual-path=/"));
       finally
         StopTestSite(lProcess);
       end;

@@ -178,6 +178,25 @@ type
     end;
   end;
 
+  WebRuntime = public static class
+  public
+
+    class property AppDomainAppPath: nullable String read GetAppDomainAppPath;
+    class property AppDomainAppVirtualPath: String read GetAppDomainAppVirtualPath;
+
+  private
+
+    class method GetAppDomainAppPath: nullable String;
+    begin
+      result := WebContext.Current:Server:PhysicalApplicationPath;
+    end;
+
+    class method GetAppDomainAppVirtualPath: String;
+    begin
+      result := coalesce(WebContext.Current:Server:ApplicationPath, "/");
+    end;
+  end;
+
   CompiledTemplateBuilder = public class
   public
     constructor(aBuildTemplateMethod: BuildTemplateMethod);

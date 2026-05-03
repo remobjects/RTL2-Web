@@ -1,7 +1,8 @@
 ﻿namespace RemObjects.Elements.Web;
 
 uses
-  System.Net;
+  System.Net,
+  RemObjects.Elements.RTL.Reflection;
 
 type
   WebRequest = public class
@@ -117,13 +118,13 @@ type
     property IsSecureConnection: Boolean read fServerVariables["HTTPS"] = "on";
     property Path: String read HttpServerRequest.Path;
     //property AnonymousID: String read assembly write; public;
-    //property FilePath: String; readonly; public;
-    //property CurrentExecutionFilePath: String; readonly; public;
-    //property CurrentExecutionFilePathExtension: String; readonly; public;
-    //property AppRelativeCurrentExecutionFilePath: String; readonly; public;
-    //property PathInfo: String read Page.Path;
-    //property PhysicalPath: String read Page.AbsolutePath
-    //property ApplicationPath: String; readonly; public;
+    property FilePath: String read GetFilePath; readonly; public;
+    property CurrentExecutionFilePath: String read FilePath; readonly; public;
+    property CurrentExecutionFilePathExtension: String read CurrentExecutionFilePath.PathExtension; readonly; public;
+    property AppRelativeCurrentExecutionFilePath: String read GetAppRelativeCurrentExecutionFilePath; readonly; public;
+    property PathInfo: String read GetPathInfo; readonly; public;
+    property PhysicalPath: nullable String read GetPhysicalPath; readonly; public;
+    property ApplicationPath: String read Page:Context:Server:ApplicationPath; readonly; public;
     property PhysicalApplicationPath: nullable String read Page:Context:Server:PhysicalApplicationPath; public;
     property UserAgent: nullable String read fServerVariables["HTTP_USER_AGENT"];
     property UserLanguages: array of String read SplitHeaderValues(Headers["Accept-Language"]);
@@ -219,6 +220,64 @@ type
         exit [];
 
       result := aValue.Split(",").Select(v -> v.Trim).Where(v -> length(v) > 0).ToArray;
+    end;
+
+    method GetAppRelativeCurrentExecutionFilePath: String;
+    begin
+      result := coalesce(GetPageStringProperty("RelativePath"), "~/");
+    end;
+
+    method GetFilePath: String;
+    begin
+      var lRelativePath := GetAppRelativeCurrentExecutionFilePath;
+      if lRelativePath.StartsWith("~/") then
+        exit "/"+lRelativePath.Substring(2);
+
+      if lRelativePath.StartsWith("/") then
+        exit lRelativePath;
+
+      result := Path;
+    end;
+
+    method GetPathInfo: String;
+    begin
+      var lFilePath := FilePath;
+      if Path.StartsWith(lFilePath) and (length(Path) > length(lFilePath)) then
+        exit Path.Substring(length(lFilePath));
+
+      result := "";
+    end;
+
+    method GetPhysicalPath: nullable String;
+    begin
+      result := GetPageStringProperty("AbsolutePath");
+    end;
+
+    method GetPageStringProperty(aName: not nullable String): nullable String;
+    begin
+      if not assigned(Page) then
+        exit;
+
+      {$IF ECHOES}
+      var lFlags := System.Reflection.BindingFlags.Instance or
+                    System.Reflection.BindingFlags.Public or
+                    System.Reflection.BindingFlags.NonPublic;
+      for each lProperty in Page.GetType.GetProperties(lFlags) do begin
+        if lProperty.Name = aName then begin
+          with matching lValue := String(lProperty.GetValue(Page, nil)) do
+            if length(lValue) > 0 then
+              exit lValue;
+        end;
+      end;
+      {$ELSE}
+      for each lProperty in typeOf(Page).Properties do begin
+        if lProperty.Name = aName then begin
+          with matching lValue := String(lProperty.GetValue(Page, [])) do
+            if length(lValue) > 0 then
+              exit lValue;
+        end;
+      end;
+      {$ENDIF}
     end;
 
     method IsMultipartForm: Boolean;

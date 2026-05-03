@@ -272,6 +272,7 @@ type
 
     property ScriptTimeout: Integer;
     property Context: WebContext; readonly;
+    property ApplicationPath: String read "/";
     property PhysicalApplicationPath: String read GetPhysicalApplicationPath;
 
   assembly
