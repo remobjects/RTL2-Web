@@ -12,6 +12,7 @@ type
   System.Web.HttpRuntime = public WebRuntime;
   System.Web.HttpServerUtility = public WebServerForContext;
   System.Web.HttpBrowserCapabilities = public WebBrowserCapabilities;
+  System.Web.HttpCookie = public WebCookie;
   System.Web.HttpFileCollection = public WebFileCollection;
   System.Web.HttpPostedFile = public WebPostedFile;
 

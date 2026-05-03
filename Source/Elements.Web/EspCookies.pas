@@ -17,6 +17,15 @@ type
 
   WebCookie = public class(ImmutableWebCookie)
   public
+    constructor;
+    begin
+    end;
+
+    constructor(aName: nullable String);
+    begin
+      Name := aName;
+    end;
+
     property Name: nullable String read assembly write;
     property Domain: nullable String;
     property Path: nullable String;

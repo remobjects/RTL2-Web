@@ -8,6 +8,8 @@ type
       HttpServerResponse := aResponse;
       HttpServerResponse.ContentStream := new MemoryStream;
       Cookies := new WebCookieCollection;
+      BufferOutput := true;
+      ContentEncoding := Encoding;
     end;
 
     property HttpServerResponse: HttpServerResponse; readonly;
@@ -20,8 +22,11 @@ type
 
     method &Write(aString: nullable String);
     begin
+      if SuppressContent then
+        exit;
+
       if assigned(aString) then begin
-        var lBytes := Encoding.GetBytes(aString) includeBOM(false);
+        var lBytes := ContentEncoding.GetBytes(aString) includeBOM(false);
         HttpServerResponse.ContentStream.Write(lBytes, 0, length(lBytes));
       end;
       //HttpServerResponse.ContentStream.Flush;
@@ -48,12 +53,18 @@ type
     //method WriteFile(fileHandle: IntPtr; offset: Int64; size: Int64); public;
     method WriteFile(aFileName: String; aOffset: Int64; aSize: Int64);
     begin
+      if SuppressContent then
+        exit;
+
       var lBytes := File.ReadBytes(aFileName);
       HttpServerResponse.ContentStream.Write(lBytes, aOffset, aSize);
     end;
 
     method WriteFile(aFileName: not nullable String; aShouldReadIntoMemory: Boolean); public;
     begin
+      if SuppressContent then
+        exit;
+
       //if aShouldReadIntoMemory then begin
         var lBytes := File.ReadBytes(aFileName);
         HttpServerResponse.ContentStream.Write(lBytes, 0, length(lBytes));
@@ -76,6 +87,11 @@ type
 
     method TransmitFile(aFileName: String); public;
     begin
+      if SuppressContent then begin
+        HttpServerResponse.ContentStream := new MemoryStream;
+        raise new CleanlyEndResponseException;
+      end;
+
       HttpServerResponse.ContentStream := new FileStream(aFileName, FileOpenMode.ReadOnly);
       raise new CleanlyEndResponseException;
     end;
@@ -102,6 +118,9 @@ type
 
     method BinaryWrite(buffer: array of Byte); public;
     begin
+      if SuppressContent then
+        exit;
+
       HttpServerResponse.ContentStream.Write(buffer, 0, length(buffer));
     end;
 
@@ -117,11 +136,21 @@ type
       end;
     end;
 
-    //method AppendCookie(cookie: System.Web.HttpCookie); public;
-    //method SetCookie(cookie: System.Web.HttpCookie); public;
+    method AppendCookie(aCookie: WebCookie); public;
+    begin
+      Cookies.Add(aCookie);
+    end;
+
+    method SetCookie(aCookie: WebCookie); public;
+    begin
+      Cookies.Add(aCookie);
+    end;
+
     method ClearHeaders;
     begin
       HttpServerResponse.Header := new HttpHeaders;
+      fCacheControl := nil;
+      fCharset := nil;
     end;
 
     method ClearContent;
@@ -207,14 +236,14 @@ type
     property Cookies: WebCookieCollection; readonly; public;
     property Headers[aName: String]: nullable String read GetHeader write SetHeader;
     property StatusCode: Integer read Integer(HttpServerResponse.HttpCode) write SetStatusCode;
-    //property SubStatusCode: Integer; public;
+    property SubStatusCode: Integer; public;
     property StatusDescription: String read GetStatusDescription write fStatusDescription; public;
     //property TrySkipIisCustomErrors: Boolean; public;
     //property SuppressFormsAuthenticationRedirect: Boolean; public;
-    //property BufferOutput: Boolean; public;
-    property ContentType: nullable String read HttpServerResponse.Header.ContentType write HttpServerResponse.Header.ContentType;
-    //property Charset: String; public;
-    //property ContentEncoding: System.Text.Encoding; public;
+    property BufferOutput: Boolean; public;
+    property ContentType: nullable String read HttpServerResponse.Header.ContentType write SetContentType;
+    property Charset: nullable String read fCharset write SetCharset; public;
+    property ContentEncoding: Encoding read fContentEncoding write SetContentEncoding; public;
     //property HeaderEncoding: System.Text.Encoding; public;
     //property Cache: System.Web.HttpCachePolicy; readonly; public;
     //property IsClientConnected: Boolean; readonly; public;
@@ -227,15 +256,18 @@ type
     property OutputStream: Stream read HttpServerResponse.ContentStream;
     {$ENDIF}
     //property Filter: System.IO.Stream; public;
-    //property SuppressContent: Boolean; public;
-    //property Status: String; public;
+    property SuppressContent: Boolean; public;
+    property Status: String read GetStatus write SetStatus; public;
     //property Buffer: Boolean; public;
     //property Expires: Integer; public;
     //property ExpiresAbsolute: System.DateTime; public;
-    //property CacheControl: String; public;
+    property CacheControl: nullable String read fCacheControl write SetCacheControl; public;
 
   private
 
+    fCacheControl: nullable String;
+    fCharset: nullable String;
+    fContentEncoding: Encoding;
     fStatusDescription: nullable String;
 
     method GetHeader(aName: String): nullable String;
@@ -248,9 +280,65 @@ type
       HttpServerResponse.HttpCode := HttpStatusCode(aValue);
     end;
 
+    method SetCharset(aValue: nullable String);
+    begin
+      fCharset := aValue;
+      UpdateContentTypeHeader;
+    end;
+
+    method SetContentEncoding(aValue: Encoding);
+    begin
+      fContentEncoding := coalesce(aValue, Encoding.UTF8);
+    end;
+
+    method SetContentType(aValue: nullable String);
+    begin
+      HttpServerResponse.Header.ContentType := aValue;
+      UpdateContentTypeHeader;
+    end;
+
+    method SetCacheControl(aValue: nullable String);
+    begin
+      fCacheControl := aValue;
+      if assigned(aValue) then
+        HttpServerResponse.Header.SetHeaderValue("Cache-Control", aValue);
+    end;
+
+    method GetStatus: String;
+    begin
+      result := $"{StatusCode} {StatusDescription}";
+    end;
+
+    method SetStatus(aValue: String);
+    begin
+      if length(aValue) = 0 then
+        exit;
+
+      var lSplit := aValue.SplitAtFirstOccurrenceOf(" ");
+      if lSplit.Count > 0 then begin
+        with matching lStatusCode := Convert.TryToInt32(lSplit[0]) do
+          StatusCode := lStatusCode;
+      end;
+      if lSplit.Count = 2 then
+        StatusDescription := lSplit[1];
+    end;
+
     method GetStatusDescription: String;
     begin
       result := coalesce(fStatusDescription, HttpServerResponse.ResponseText);
+    end;
+
+    method UpdateContentTypeHeader;
+    begin
+      var lContentType := HttpServerResponse.Header.ContentType;
+      if length(lContentType) = 0 then
+        exit;
+
+      var lBaseType := lContentType.SplitAtFirstOccurrenceOf(";")[0].Trim;
+      if length(Charset) > 0 then
+        HttpServerResponse.Header.ContentType := $"{lBaseType}; charset={Charset}"
+      else
+        HttpServerResponse.Header.ContentType := lBaseType;
     end;
 
   end;

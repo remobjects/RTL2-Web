@@ -363,6 +363,27 @@ type
               var lBody := lStatus.Content.ReadAsStringAsync.GetAwaiter.GetResult;
               Assert.AreEqual(lBody, "NotFound");
             end;
+
+            using lRuntime := lClient.GetAsync(BaseUrl+"/Response.ashx?action=runtime").GetAwaiter.GetResult do begin
+              Assert.AreEqual(Integer(lRuntime.StatusCode), 202);
+              Assert.AreEqual(lRuntime.Headers.GetValues("Cache-Control").FirstOrDefault, "no-cache");
+              var lCookieHeaders := lRuntime.Headers.GetValues("Set-Cookie").ToList;
+              Assert.IsTrue(lCookieHeaders.Any(s -> s.StartsWith("append-cookie=one")));
+              Assert.IsTrue(lCookieHeaders.Any(s -> s.StartsWith("set-cookie=two")));
+              var lBody := lRuntime.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+              Assert.IsTrue(lBody.Contains("status=202 Accepted"));
+              Assert.IsTrue(lBody.Contains("code=202"));
+              Assert.IsTrue(lBody.Contains("description=Accepted"));
+              Assert.IsTrue(lBody.Contains("substatus=7"));
+              Assert.IsTrue(lBody.Contains("buffer=False"));
+              Assert.IsTrue(lBody.Contains("suppress=False"));
+              Assert.IsTrue(lBody.Contains("cache=no-cache"));
+              Assert.IsTrue(lBody.Contains("charset=utf-8"));
+              Assert.IsTrue(lBody.Contains("content-type=text/plain; charset=utf-8"));
+            end;
+
+            var lSuppress := lClient.GetStringAsync(BaseUrl+"/Response.ashx?action=suppress").GetAwaiter.GetResult;
+            Assert.AreEqual(lSuppress, "");
           end;
         end;
       finally

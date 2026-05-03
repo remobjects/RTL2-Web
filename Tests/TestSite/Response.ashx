@@ -74,6 +74,39 @@ type
           Context.Response.Write(Context.Response.StatusDescription);
         end;
 
+        "runtime": begin
+          Context.Response.ContentType := "text/plain";
+          Context.Response.Charset := "utf-8";
+          Context.Response.CacheControl := "no-cache";
+          Context.Response.BufferOutput := false;
+          Context.Response.SubStatusCode := 7;
+          Context.Response.Status := "202 Accepted";
+
+          var lAppendCookie := new HttpCookie("append-cookie");
+          lAppendCookie.Value := "one";
+          Context.Response.AppendCookie(lAppendCookie);
+
+          var lSetCookie := new HttpCookie("set-cookie");
+          lSetCookie.Value := "two";
+          Context.Response.SetCookie(lSetCookie);
+
+          Context.Response.Write("status="+Context.Response.Status);
+          Context.Response.Write(";code="+Context.Response.StatusCode);
+          Context.Response.Write(";description="+Context.Response.StatusDescription);
+          Context.Response.Write(";substatus="+Context.Response.SubStatusCode);
+          Context.Response.Write(";buffer="+Context.Response.BufferOutput);
+          Context.Response.Write(";suppress="+Context.Response.SuppressContent);
+          Context.Response.Write(";cache="+Context.Response.CacheControl);
+          Context.Response.Write(";charset="+Context.Response.Charset);
+          Context.Response.Write(";content-type="+Context.Response.ContentType);
+        end;
+
+        "suppress": begin
+          Context.Response.ContentType := "text/plain";
+          Context.Response.SuppressContent := true;
+          Context.Response.Write("hidden");
+        end;
+
         else begin
           Context.Response.ContentType := "text/plain";
           Context.Response.Write("unknown");

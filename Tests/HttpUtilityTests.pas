@@ -23,6 +23,11 @@ type
       Assert.AreEqual(HttpUtility.HtmlDecode("&lt;a href=&quot;/&quot;&gt;A&amp;B&lt;/a&gt;"), "<a href=""/"">A&B</a>");
     end;
 
+    method HtmlAttributeEncodeEscapesAttributeSensitiveCharacters;
+    begin
+      Assert.AreEqual(HttpUtility.HtmlAttributeEncode("x""&<>"), "x&quot;&amp;&lt;&gt;");
+    end;
+
   end;
 
 end.

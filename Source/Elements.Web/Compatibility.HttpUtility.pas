@@ -32,7 +32,10 @@ type
 
     method HtmlAttributeEncode(aString: nullable String): nullable String;
     begin
-      raise new NotImplementedException(#"HtmlAttributeEncode is not implemented yet");
+      if not assigned(aString) then
+        exit;
+
+      result := aString.Replace("&", "&amp;").Replace("""", "&quot;").Replace("<", "&lt;").Replace(">", "&gt;");
     end;
 
   end;
