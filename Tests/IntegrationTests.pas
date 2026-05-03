@@ -327,10 +327,20 @@ type
               Assert.IsFalse(lBody.Contains("after-end"));
             end;
 
+            var lRawUrl := lClient.GetStringAsync(BaseUrl+"/Response.ashx?action=rawurl&value=123").GetAwaiter.GetResult;
+            Assert.AreEqual(lRawUrl, "/Response.ashx?action=rawurl&value=123");
+
             using lPermanent := lClient.GetAsync(BaseUrl+"/Response.ashx?action=permanent").GetAwaiter.GetResult do begin
               Assert.AreEqual(Integer(lPermanent.StatusCode), 301);
               Assert.AreEqual(lPermanent.Headers.Location.ToString, "/Ping.ashx?value=permanent");
             end;
+
+            var lTransferHandler := lClient.GetStringAsync(BaseUrl+"/Response.ashx?action=transfer-handler").GetAwaiter.GetResult;
+            Assert.AreEqual(lTransferHandler, "handler=transferred-handler");
+
+            var lTransferPage := lClient.GetStringAsync(BaseUrl+"/Response.ashx?action=transfer-page").GetAwaiter.GetResult;
+            Assert.IsTrue(lTransferPage.Contains("query=transferred-page"));
+            Assert.IsFalse(lTransferPage.Contains("after-transfer-page"));
 
             using lClear := lClient.GetAsync(BaseUrl+"/Response.ashx?action=clear").GetAwaiter.GetResult do begin
               var lBody := lClear.Content.ReadAsStringAsync.GetAwaiter.GetResult;

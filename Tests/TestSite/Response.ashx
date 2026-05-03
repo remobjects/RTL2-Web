@@ -31,6 +31,21 @@ type
           Context.Response.Write("after-end");
         end;
 
+        "transfer-handler": begin
+          Context.Server.Transfer("/Ping.ashx?value=transferred-handler");
+          Context.Response.Write("after-transfer-handler");
+        end;
+
+        "transfer-page": begin
+          Context.Server.Transfer("/?q=transferred-page");
+          Context.Response.Write("after-transfer-page");
+        end;
+
+        "rawurl": begin
+          Context.Response.ContentType := "text/plain";
+          Context.Response.Write(Context.Request.RawUrl);
+        end;
+
         "permanent": begin
           Context.Response.RedirectPermanent("/Ping.ashx?value=permanent", false);
         end;

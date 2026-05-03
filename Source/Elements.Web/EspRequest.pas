@@ -17,7 +17,7 @@ type
     begin
       HttpServerRequest := aRequest;
       Url := aUrl;
-      fQueryString := new WebNameValueCollection(aRequest.QueryString.ToString);
+      fQueryString := new WebNameValueCollection(aUrl.QueryString);
 
       fHeaders := new WebNameValueCollection(true);
       fServerVariables := new WebNameValueCollection(true);
@@ -116,7 +116,7 @@ type
     property AcceptTypes: array of String read SplitHeaderValues(Headers["Accept"]);
     //property IsAuthenticated: Boolean; readonly; public;
     property IsSecureConnection: Boolean read fServerVariables["HTTPS"] = "on";
-    property Path: String read HttpServerRequest.Path;
+    property Path: String read Url.Path;
     //property AnonymousID: String read assembly write; public;
     property FilePath: String read GetFilePath; readonly; public;
     property CurrentExecutionFilePath: String read FilePath; readonly; public;
@@ -131,7 +131,7 @@ type
     property Browser: WebBrowserCapabilities; public;
     property UserHostName: nullable String read UserHostAddress; public;
     property UserHostAddress: nullable String read coalesce(fServerVariables["REMOTE_ADDR"], fServerVariables["HTTP_X_FORWARDED_FOR"]); public;
-    property RawUrl: String read Url.ToAbsoluteString; public; // for now
+    property RawUrl: String read GetRawUrl; public;
     property Url: Url; readonly; public;
     property UrlReferrer: nullable Url read Url.TryUrlWithString(coalesce(Headers["Referer"], Headers["Referrer"])); public;
     property &Params: WebNameValueCollection := LazyLoadParams; readonly; lazy;
@@ -251,6 +251,14 @@ type
     method GetPhysicalPath: nullable String;
     begin
       result := GetPageStringProperty("AbsolutePath");
+    end;
+
+    method GetRawUrl: String;
+    begin
+      result := Url.Path;
+      var lQuery := QueryString.ToString;
+      if length(lQuery) > 0 then
+        result := result+"?"+lQuery;
     end;
 
     method GetPageStringProperty(aName: not nullable String): nullable String;

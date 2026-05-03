@@ -21,115 +21,154 @@ type
     method HandleEspRequest(aSender: Object; aEventArgs: HttpRequestEventArgs);
     begin
       try
+        var lRequestPath := aEventArgs.Request.Path;
+        var lRequestQuery := aEventArgs.Request.QueryString.ToString;
+        var lTransferCount := 0;
 
-        var lObject := PageFactory:DoFindClassForPath(aEventArgs.Request.Path);
-        if assigned(lObject) then begin
+        while true do begin
+          var lObject := PageFactory:DoFindClassForPath(lRequestPath);
+          if assigned(lObject) then begin
 
-          //Log($"{aEventArgs.Request.Path} served via {lObject}");
-          var lHost := String(aEventArgs.Request.Header["Host"]:Value):SubstringToFirstOccurrenceOf(":");
-          var lPort := aEventArgs.Connection.Binding.Port;
-          with matching lLocalEndPoint := IPEndPoint(aEventArgs.Connection.LocalEndPoint) do
-            lPort := lLocalEndPoint.Port;
-          var lScheme := "http"; // for now
-          var lUrl := Url.UrlWithComponents(lScheme, lHost, lPort, aEventArgs.Request.Path, aEventArgs.Request.QueryString.ToString, nil, nil);
-          var lContext := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl, aEventArgs.Connection.RemoteEndPoint, aEventArgs.Connection.LocalEndPoint), new WebResponse(aEventArgs.Response));
-          lContext.Server := new WebServerForContext(self, lContext);
+            //Log($"{lRequestPath} served via {lObject}");
+            var lHost := String(aEventArgs.Request.Header["Host"]:Value):SubstringToFirstOccurrenceOf(":");
+            var lPort := aEventArgs.Connection.Binding.Port;
+            with matching lLocalEndPoint := IPEndPoint(aEventArgs.Connection.LocalEndPoint) do
+              lPort := lLocalEndPoint.Port;
+            var lScheme := "http"; // for now
+            var lUrl := Url.UrlWithComponents(lScheme, lHost, lPort, lRequestPath, lRequestQuery, nil, nil);
+            var lContext := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl, aEventArgs.Connection.RemoteEndPoint, aEventArgs.Connection.LocalEndPoint), new WebResponse(aEventArgs.Response));
+            lContext.Server := new WebServerForContext(self, lContext);
 
-          var lPreviousContext := WebContext.Current;
-          WebContext.Current := lContext;
-          try
-
+            var lPreviousContext := WebContext.Current;
+            var lTransferPath: nullable String := nil;
+            WebContext.Current := lContext;
             try
 
-              if lObject is Page then begin
-                var lPage := lObject as Page;
-                lPage.Context := lContext;
-                lContext.Request.Page := lPage;
-                lPage.OnLoad(new EventArgs);
-                lPage.RenderControl(nil);
-                lPage.OnUnLoad(new EventArgs);
-              end
-              else if lObject is IHttpHandler then begin
-                (lObject as IHttpHandler).ProcessRequest(lContext)
-              end
-              else begin
-                aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
-                //aEventArgs.Response.Header["Content-Type"] := "text/html";
-                aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.InternalServerError;
-                aEventArgs.Response.ContentString := $"<h1>{Integer(aEventArgs.Response.HttpCode)} Internal Error.</h1><p>Unexpected/unsupported class {typeOf(lObject)} for path {aEventArgs.Request.Path}</p>";
+              try
+
+                if lObject is Page then begin
+                  var lPage := lObject as Page;
+                  lPage.Context := lContext;
+                  lContext.Request.Page := lPage;
+                  lPage.OnLoad(new EventArgs);
+                  lPage.RenderControl(nil);
+                  lPage.OnUnLoad(new EventArgs);
+                end
+                else if lObject is IHttpHandler then begin
+                  (lObject as IHttpHandler).ProcessRequest(lContext)
+                end
+                else begin
+                  aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
+                  aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.InternalServerError;
+                  aEventArgs.Response.ContentString := $"<h1>{Integer(aEventArgs.Response.HttpCode)} Internal Error.</h1><p>Unexpected/unsupported class {typeOf(lObject)} for path {lRequestPath}</p>";
+                end;
+
+                var lCookieIndex := 0;
+                for each lCookieHeader in lContext.Response.Cookies.GetCookieHeaderStrings do begin
+                  if lCookieIndex = 0 then
+                    lContext.Response.HttpServerResponse.Header.SetHeaderValue("Set-Cookie", lCookieHeader)
+                  else
+                    lContext.Response.HttpServerResponse.Header["Set-Cookie"].Add(lCookieHeader);
+                  inc(lCookieIndex);
+                end;
+                aEventArgs.Response.ContentStream.Seek(0, SeekOrigin.Begin);
+
+              except
+                on E: TransferToNewPathException do begin
+                  inc(lTransferCount);
+                  if lTransferCount > 8 then
+                    raise new Exception("Too many Server.Transfer requests.");
+                  lTransferPath := E.Path;
+                end;
+                on E: CleanlyEndResponseException do
+                  begin
+                  end;
+                {$IF ECHOES}
+                on E: System.Reflection.TargetInvocationException do begin
+                  if E.InnerException is TransferToNewPathException then begin
+                    inc(lTransferCount);
+                    if lTransferCount > 8 then
+                      raise new Exception("Too many Server.Transfer requests.");
+                    lTransferPath := (E.InnerException as TransferToNewPathException).Path;
+                  end
+                  else if E.InnerException is CleanlyEndResponseException then begin
+                  end
+                  else begin
+                    raise;
+                  end;
+                end;
+                {$ENDIF}
               end;
 
-            except
-              on E: CleanlyEndResponseException do; // ignore these
-              {$IF ECHOES}
-              on E: System.Reflection.TargetInvocationException do
-                if E.InnerException is not CleanlyEndResponseException then
-                  raise;
-              {$ENDIF}
+            finally
+              WebContext.Current := lPreviousContext;
             end;
 
-            var lCookieIndex := 0;
-            for each lCookieHeader in lContext.Response.Cookies.GetCookieHeaderStrings do begin
-              if lCookieIndex = 0 then
-                lContext.Response.HttpServerResponse.Header.SetHeaderValue("Set-Cookie", lCookieHeader)
-              else
-                lContext.Response.HttpServerResponse.Header["Set-Cookie"].Add(lCookieHeader);
-              inc(lCookieIndex);
+            if assigned(lTransferPath) then begin
+              var lQuestionMark := lTransferPath.IndexOf("?");
+              if lQuestionMark ≥ 0 then begin
+                lRequestPath := lTransferPath.Substring(0, lQuestionMark);
+                lRequestQuery := lTransferPath.Substring(lQuestionMark+1);
+              end
+              else begin
+                lRequestPath := lTransferPath;
+                lRequestQuery := "";
+              end;
+              continue;
             end;
-            aEventArgs.Response.ContentStream.Seek(0, SeekOrigin.Begin);
 
-          finally
-            WebContext.Current := lPreviousContext;
-          end;
-
-        end
-        else begin
-          var lRedirect := PageFactory:FindRedirectForPath(aEventArgs.Request.Path);
-          if assigned(lRedirect) then begin
-
-            Log($"{aEventArgs.Request.Path} redirected to {lRedirect}");
-            aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.MovedPermanently;
-            aEventArgs.Response.Header.SetHeaderValue("Location", lRedirect);
-            aEventArgs.Response.ContentString := $"<head><title>Document Moved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a hrwf=""{lRedirect}"">here</a>.</p></body>";
+            break;
 
           end
           else begin
-            var lResourceName := PageFactory:FindResourcesForPath(aEventArgs.Request.Path);
-            if assigned(lResourceName) then begin
+            var lRedirect := PageFactory:FindRedirectForPath(lRequestPath);
+            if assigned(lRedirect) then begin
 
-              if defined("ECHOES") then begin
-                var lAssembly := System.Reflection.Assembly.GetEntryAssembly;
-
-                var lStream := lAssembly.GetManifestResourceStream(lResourceName);
-                if assigned(lStream) then begin
-                  //Log($"{aEventArgs.Request.Path} served as resource {lResourceName}");
-                  aEventArgs.Response.ContentStream := new WrappedPlatformStream(lStream);
-                end
-                else begin
-                  Log($"{aEventArgs.Request.Path} resource 404");
-                  aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
-                  //aEventArgs.Response.Header["Content-Type"] := "text/html";
-                  aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.NotFound;
-                  aEventArgs.Response.ContentString := $"<h1>404 Embedded resource Not found.</h1> <tt>{aEventArgs.Request.Path}</tt>";
-                end;
-              end
-              else begin
-                raise new NotImplementedException("Serving static resources is not yet implemented for this platform.");
-              end;
+              Log($"{lRequestPath} redirected to {lRedirect}");
+              aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.MovedPermanently;
+              aEventArgs.Response.Header.SetHeaderValue("Location", lRedirect);
+              aEventArgs.Response.ContentString := $"<head><title>Document Moved</title></head><body><h1>Object Moved.</h1><p>This document may be found <a hrwf=""{lRedirect}"">here</a>.</p></body>";
 
             end
             else begin
+              var lResourceName := PageFactory:FindResourcesForPath(lRequestPath);
+              if assigned(lResourceName) then begin
 
-              Log($"{aEventArgs.Request.Path} unknown path 404");
-              if not RunError(aEventArgs, 404) then begin
-                aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
-                //aEventArgs.Response.Header["Content-Type"] := "text/html";
-                aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.NotFound;
-                aEventArgs.Response.ContentString := $"<h1>404 Not found.</h1> <tt>{aEventArgs.Request.Path}</tt>";
+                if defined("ECHOES") then begin
+                  var lAssembly := System.Reflection.Assembly.GetEntryAssembly;
+
+                  var lStream := lAssembly.GetManifestResourceStream(lResourceName);
+                  if assigned(lStream) then begin
+                    //Log($"{lRequestPath} served as resource {lResourceName}");
+                    aEventArgs.Response.ContentStream := new WrappedPlatformStream(lStream);
+                  end
+                  else begin
+                    Log($"{lRequestPath} resource 404");
+                    aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
+                    //aEventArgs.Response.Header["Content-Type"] := "text/html";
+                    aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.NotFound;
+                    aEventArgs.Response.ContentString := $"<h1>404 Embedded resource Not found.</h1> <tt>{lRequestPath}</tt>";
+                  end;
+                end
+                else begin
+                  raise new NotImplementedException("Serving static resources is not yet implemented for this platform.");
+                end;
+
+              end
+              else begin
+
+                Log($"{lRequestPath} unknown path 404");
+                if not RunError(aEventArgs, 404) then begin
+                  aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html");
+                  //aEventArgs.Response.Header["Content-Type"] := "text/html";
+                  aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.NotFound;
+                  aEventArgs.Response.ContentString := $"<h1>404 Not found.</h1> <tt>{lRequestPath}</tt>";
+                end;
+
               end;
-
             end;
           end;
+          break;
         end;
 
       except
