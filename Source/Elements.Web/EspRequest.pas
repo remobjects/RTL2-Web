@@ -97,11 +97,15 @@ type
 
     method BodyAsString: String;
     begin
+      if not HasRequestBody then
+        exit "";
       result := HttpServerRequest.ContentString;
     end;
 
     method BodyAsBytes: array of Byte;
     begin
+      if not HasRequestBody then
+        exit [];
       result := HttpServerRequest.ContentBytes;
     end;
 
@@ -166,6 +170,14 @@ type
     fMultipartForm: WebNameValueCollection;
     fMultipartFiles: WebFileCollection;
     fParsedMultipart: Boolean;
+
+    method HasRequestBody: Boolean;
+    begin
+      if HttpServerRequest.HasContentLength then
+        exit HttpServerRequest.ContentLength > 0;
+
+      result := HttpServerRequest.Chunked;
+    end;
 
     method GetFormValue(aValue: String): nullable String;
     begin
