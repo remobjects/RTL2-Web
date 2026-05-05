@@ -202,6 +202,17 @@ type
       end;
     end;
 
+    method InlineServerScriptBlocksBecomePageMembers;
+    begin
+      var lProcess := StartTestSite;
+      try
+        var lPage := GetString("/InlineScript.aspx");
+        Assert.IsTrue(lPage.Contains("inline-script-ok"));
+      finally
+        StopTestSite(lProcess);
+      end;
+    end;
+
     method SessionStateRoundTripsWithSessionCookie;
     begin
       var lProcess := StartTestSite;

@@ -51,6 +51,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Default.aspx" />
+    <None Include="InlineScript.aspx" />
     <None Include="Site.master" />
     <None Include="Nested.aspx" />
     <None Include="NestedFallback.aspx" />
