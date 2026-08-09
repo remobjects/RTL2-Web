@@ -50,7 +50,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AutoWire.aspx.pas" />
     <None Include="Default.aspx" />
+    <None Include="AutoWire.aspx" />
     <None Include="InlineScript.aspx" />
     <None Include="Site.master" />
     <None Include="Nested.aspx" />
@@ -61,6 +63,7 @@
     <None Include="Ping.ashx" />
     <None Include="Response.ashx" />
     <None Include="Upload.ashx" />
+    <None Include="Error.ashx" />
     <EmbeddResource Include="Static\hello.txt">
       <IsWebResource>True</IsWebResource>
       <LogicalName>RemObjects.Elements.Web.Tests.TestSite.Static.hello.txt</LogicalName>

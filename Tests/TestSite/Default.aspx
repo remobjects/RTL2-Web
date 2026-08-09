@@ -13,11 +13,15 @@
   var lUserLanguages := Request.UserLanguages;
   var lAcceptType := if length(lAcceptTypes) > 0 then lAcceptTypes[0] else "";
   var lUserLanguage := if length(lUserLanguages) > 0 then lUserLanguages[0] else "";
+  Context.Items["request-value"] := "request-scope";
+  System.Web.HttpContext.Current.Items["current-value"] := "current-scope";
 %>
 query=<%=Request.QueryString["q"]%>
 form=<%=Request.Form["name"]%>
 session=<%=lCount%>
 application=<%=RemObjects.Elements.Web.Application["last-query"]%>
+context-items=<%=Context.Items["request-value"]%>
+context-current-items=<%=Context.Items["current-value"]%>
 seen=<%=Request.Cookies["Seen"]:Value%>
 flavor=<%=Request.Cookies["Flavor"]:Values["kind"]%>
 params-query=<%=Request.Params["q"]%>

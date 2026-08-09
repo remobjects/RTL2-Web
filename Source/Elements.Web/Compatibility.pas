@@ -12,6 +12,9 @@ type
   System.Web.HttpRuntime = public WebRuntime;
   System.Web.HttpServerUtility = public WebServerForContext;
   System.Web.HttpBrowserCapabilities = public WebBrowserCapabilities;
+  System.Web.HttpCacheability = public RemObjects.Elements.Web.HttpCacheability;
+  System.Web.HttpCacheRevalidation = public RemObjects.Elements.Web.HttpCacheRevalidation;
+  System.Web.HttpCachePolicy = public WebCachePolicy;
   System.Web.HttpCookie = public WebCookie;
   System.Web.HttpFileCollection = public WebFileCollection;
   System.Web.HttpPostedFile = public WebPostedFile;

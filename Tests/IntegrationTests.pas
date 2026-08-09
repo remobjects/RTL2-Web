@@ -164,6 +164,8 @@ type
         Assert.IsTrue(lPage.Contains("request-mappath="));
         Assert.IsTrue(lPage.Contains("session=1"));
         Assert.IsTrue(lPage.Contains("application=hello world"));
+        Assert.IsTrue(lPage.Contains("context-items=request-scope"));
+        Assert.IsTrue(lPage.Contains("context-current-items=current-scope"));
         Assert.IsTrue(lPage.Contains("control=from-control"));
         Assert.IsTrue(lPage.Contains("master-end"));
 
@@ -208,6 +210,16 @@ type
       try
         var lPage := GetString("/InlineScript.aspx");
         Assert.IsTrue(lPage.Contains("inline-script-ok"));
+      finally
+        StopTestSite(lProcess);
+      end;
+    end;
+
+    method AutoEventWireupFindsProtectedInheritedPageLoad;
+    begin
+      var lProcess := StartTestSite;
+      try
+        Assert.IsTrue(GetString("/AutoWire.aspx").Contains("auto-wire=protected-inherited-load"));
       finally
         StopTestSite(lProcess);
       end;
@@ -395,6 +407,40 @@ type
 
             var lSuppress := lClient.GetStringAsync(BaseUrl+"/Response.ashx?action=suppress").GetAwaiter.GetResult;
             Assert.AreEqual(lSuppress, "");
+          end;
+        end;
+      finally
+        StopTestSite(lProcess);
+      end;
+    end;
+
+    method FrameworkErrorPagesUseTheElementsCardFrame;
+    begin
+      var lProcess := StartTestSite;
+      try
+        using lClient := new System.Net.Http.HttpClient do begin
+          using lResponse := lClient.GetAsync(BaseUrl+"/Error.ashx").GetAwaiter.GetResult do begin
+            Assert.AreEqual(Integer(lResponse.StatusCode), 500);
+            var lBody := lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+            Assert.IsTrue(lBody.Contains("Elements-1024.png"));
+            Assert.IsTrue(lBody.Contains("class=""card"""));
+            Assert.IsTrue(lBody.Contains("HTTP 500"));
+            Assert.IsTrue(lBody.Contains("Internal Server Error"));
+            Assert.IsTrue(lBody.Contains("/Error.ashx"));
+            Assert.IsTrue(lBody.Contains("The &lt;sample&gt; handler failed."));
+            Assert.IsTrue(lBody.Contains("Inner &amp; specific cause."));
+            Assert.IsTrue(lBody.Contains("Stack trace"));
+            Assert.IsTrue(lBody.Contains("class=""stack-frame"""));
+            Assert.IsTrue(lBody.Contains("class=""stack-location"""));
+            Assert.IsFalse(lBody.Contains("href=""file://"));
+          end;
+
+          using lResponse := lClient.GetAsync(BaseUrl+"/Missing.aspx").GetAwaiter.GetResult do begin
+            Assert.AreEqual(Integer(lResponse.StatusCode), 404);
+            var lBody := lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+            Assert.IsTrue(lBody.Contains("Elements-1024.png"));
+            Assert.IsTrue(lBody.Contains("HTTP 404"));
+            Assert.IsTrue(lBody.Contains("Page Not Found"));
           end;
         end;
       finally

@@ -1,6 +1,80 @@
 ﻿namespace RemObjects.Elements.Web;
 
 type
+  HttpCacheability = public enum (
+    NoCache,
+    &Private,
+    Server,
+    ServerAndNoCache,
+    ServerAndPrivate,
+    &Public
+  );
+
+  HttpCacheRevalidation = public enum (
+    AllCaches,
+    ProxyCaches,
+    None
+  );
+
+  WebCachePolicy = public class
+  public
+    constructor(aResponse: not nullable WebResponse);
+    begin
+      fResponse := aResponse;
+    end;
+
+    method SetCacheability(aCacheability: HttpCacheability);
+    begin
+      case aCacheability of
+        HttpCacheability.NoCache: fResponse.CacheControl := "no-cache";
+        HttpCacheability.&Private: fResponse.CacheControl := "private";
+        HttpCacheability.Server: fResponse.CacheControl := "no-cache";
+        HttpCacheability.ServerAndNoCache: fResponse.CacheControl := "no-cache";
+        HttpCacheability.ServerAndPrivate: fResponse.CacheControl := "private";
+        HttpCacheability.&Public: fResponse.CacheControl := "public";
+      end;
+    end;
+
+    method SetNoStore;
+    begin
+      var lCacheControl := coalesce(fResponse.CacheControl, "");
+      if length(lCacheControl) = 0 then
+        lCacheControl := "no-store"
+      else if not lCacheControl.ToLowerInvariant.Split(",").Any(v -> v.Trim = "no-store") then
+        lCacheControl := lCacheControl+", no-store";
+
+      fResponse.CacheControl := lCacheControl;
+      fResponse.Headers["Pragma"] := "no-cache";
+    end;
+
+    method SetRevalidation(aRevalidation: HttpCacheRevalidation);
+    begin
+      case aRevalidation of
+        HttpCacheRevalidation.AllCaches:
+          fResponse.CacheControl := AppendCacheControlDirective("must-revalidate, proxy-revalidate");
+        HttpCacheRevalidation.ProxyCaches:
+          fResponse.CacheControl := AppendCacheControlDirective("proxy-revalidate");
+        HttpCacheRevalidation.None:
+          ;
+      end;
+    end;
+
+  private
+    fResponse: not nullable WebResponse;
+
+    method AppendCacheControlDirective(aDirective: not nullable String): String;
+    begin
+      var lCacheControl := coalesce(fResponse.CacheControl, "");
+      if length(lCacheControl) = 0 then
+        exit aDirective;
+
+      if lCacheControl.ToLowerInvariant.Split(",").Any(v -> v.Trim = aDirective.ToLowerInvariant) then
+        exit lCacheControl;
+
+      result := lCacheControl+", "+aDirective;
+    end;
+  end;
+
   WebResponse = public class
   public
     constructor(aResponse: HttpServerResponse);
@@ -245,7 +319,7 @@ type
     property Charset: nullable String read fCharset write SetCharset; public;
     property ContentEncoding: Encoding read fContentEncoding write SetContentEncoding; public;
     //property HeaderEncoding: System.Text.Encoding; public;
-    //property Cache: System.Web.HttpCachePolicy; readonly; public;
+    property Cache: WebCachePolicy := new WebCachePolicy(self); readonly; lazy;
     //property IsClientConnected: Boolean; readonly; public;
     //property ClientDisconnectedToken: System.Threading.CancellationToken; readonly; public;
     property IsRequestBeingRedirected: Boolean read assembly write; public;

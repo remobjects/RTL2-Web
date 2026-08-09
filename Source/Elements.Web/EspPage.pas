@@ -70,38 +70,37 @@ type
 
     method AutoEventWireup;
     begin
-      //Log($"AutoEventWireup for {typeOf(self).Name}");
+      with matching lMethod := FindAutoEventHandler("Page_Load") do
+        Load += CreateDelegate(self, lMethod);
+      with matching lMethod := FindAutoEventHandler("Page_UnLoad") do
+        UnLoad += CreateDelegate(self, lMethod);
+    end;
 
-      for each m in typeOf(self).Methods do begin
-        //var p := m.Name.LastIndexOf("_");
-        //if p > 0 then begin
-          //var lName := m.Name.Substring(p+1);
-          case caseInsensitive(m.Name) of
-            //"Page_PreInit": Load += CreateDelegate(self, m);
-            //"Page_Init": Load += CreateDelegate(self, m);
-            //"Page_InitComplete": Load += CreateDelegate(self, m);
-            //"Page_PreLoad": Load += CreateDelegate(self, m);
-            "Page_Load": Load += CreateDelegate(self, m);
-            //"Page_LoadComplete": Load += CreateDelegate(self, m);
-            //"Page_PreRender": Load += CreateDelegate(self, m);
-            //"Page_PreRenderComplete": Load += CreateDelegate(self, m);
-            //"Page_SaveStateComplete": Load += CreateDelegate(self, m);
-            //"Page_Render": Load += CreateDelegate(self, m);
-            "Page_UnLoad": UnLoad += CreateDelegate(self, m);
-          end;
-        //end;
+    method FindAutoEventHandler(aName: not nullable String): nullable &Method;
+    begin
+      {$IF ECHOES}
+      var lType := System.Type(typeOf(self));
+      while assigned(lType) do begin
+        var lFlags := System.Reflection.BindingFlags.Instance or
+                      System.Reflection.BindingFlags.Public or
+                      System.Reflection.BindingFlags.NonPublic or
+                      System.Reflection.BindingFlags.DeclaredOnly;
+        for each lMethod in lType.GetMethods(lFlags) do begin
+          if caseInsensitive(lMethod.Name) = caseInsensitive(aName) then
+            exit &Method(lMethod);
+        end;
+        lType := lType.BaseType;
       end;
-
-      //var lMethod := typeOf(self).GetMethod("Page_Load", System.Reflection.BindingFlags.NonPublic or System.Reflection.BindingFlags.IgnoreCase or System.Reflection.BindingFlags.FlattenHierarchy);
-        //if assigned(lMethod) and (lMethod.GetParameters.Count = 2) then begin
-          //Log($"lMethod {lMethod}");
-          //lMethod.Invoke(self, [self, e]);
-        //end
-        //else begin
-          //Log($"No Page_Load found {lMethod}");
-        //end;
-      //end;
-
+      {$ELSEIF ISLAND}
+      var lType := typeOf(self);
+      while assigned(lType) do begin
+        for each lMethod in lType.Methods do begin
+          if caseInsensitive(lMethod.Name) = caseInsensitive(aName) then
+            exit lMethod;
+        end;
+        lType := lType.BaseType;
+      end;
+      {$ENDIF}
     end;
 
   private
@@ -143,6 +142,31 @@ type
   //HttpContext = public System.Web.HttpContext;
   //HtmlTextWriter = public System.Web.UI.HtmlTextWriter;
 
+  WebContextItems = public class
+  public
+    property Item[aName: not nullable Object]: nullable Object read fValues[aName] write SetValue; default;
+    property Keys: sequence of Object read fValues.Keys;
+    property Count: Integer read fValues.Count;
+
+    method Clear;
+    begin
+      fValues.RemoveAll;
+    end;
+
+    method Remove(aName: not nullable Object);
+    begin
+      fValues[aName] := nil;
+    end;
+
+  private
+    fValues := new Dictionary<Object,Object>;
+
+    method SetValue(aName: not nullable Object; aValue: nullable Object);
+    begin
+      fValues[aName] := aValue;
+    end;
+  end;
+
   WebContext = public class
   public
     constructor(aRequest: WebRequest; aResponse: WebResponse);
@@ -156,6 +180,7 @@ type
     property Request: WebRequest; readonly;
     property Response: WebResponse; readonly;
     property Session: WebSessionState;
+    property Items: WebContextItems := new WebContextItems; readonly; lazy;
     property Server: WebServerForContext;
 
     class property Current: nullable WebContext read GetCurrent write SetCurrent;

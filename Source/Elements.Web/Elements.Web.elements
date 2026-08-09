@@ -96,6 +96,7 @@
     <Compile Include="EspRequest.pas" />
     <Compile Include="EspResponse.pas" />
     <Compile Include="EspServer.pas" />
+    <Compile Include="HtmlLandingPage.pas" />
     <Compile Include="Compatibility.pas" />
     <Compile Include="Compatibility.HttpUtility.pas" />
     <Compile Include="EspNameValueCollection.pas" />
