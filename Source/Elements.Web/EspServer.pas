@@ -1,7 +1,9 @@
 ﻿namespace RemObjects.Elements.Web;
 
 uses
+  {$IF ECHOES}
   System.Net,
+  {$ENDIF}
   RemObjects.Elements.RTL.Reflection;
 
 type

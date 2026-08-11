@@ -25,10 +25,6 @@
     <CpuType>anycpu</CpuType>
     <EnableUnmanagedDebugging>False</EnableUnmanagedDebugging>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Target)' == 'Echoes.Classic' ">
-    <Mode>Echoes</Mode>
-    <TargetFramework>.NETFramework4.5</TargetFramework>
-  </PropertyGroup>
   <PropertyGroup Condition=" '$(Target)' == 'Echoes.Standard' ">
     <Mode>Echoes</Mode>
     <TargetFramework>.NETStandard2.0</TargetFramework>
@@ -45,25 +41,6 @@
     <Mode>Island</Mode>
     <SubMode>Windows</SubMode>
   </PropertyGroup>
-  <ItemGroup Condition=" '$(Target)' == 'Echoes.Classic' ">
-    <Reference Include="mscorlib" />
-    <Reference Include="System" />
-    <Reference Include="System.Core">
-      <RequiredTargetFramework>3.5</RequiredTargetFramework>
-    </Reference>
-    <Reference Include="Elements">
-      <Private>True</Private>
-      <HintPath>\Users\mh\Code\RemObjects\website\4.0\Site\Bin\Elements.dll</HintPath>
-    </Reference>
-    <Reference Include="Echoes">
-      <Private>True</Private>
-      <HintPath>\Users\mh\Code\RemObjects\website\4.0\Site\Bin\Echoes.dll</HintPath>
-    </Reference>
-    <Reference Include="RemObjects.InternetPack">
-      <Private>True</Private>
-      <HintPath>\Users\mh\Code\RemObjects\website\4.0\Site\Bin\RemObjects.InternetPack.dll</HintPath>
-    </Reference>
-  </ItemGroup>
   <ItemGroup Condition=" '$(Target)' == 'Echoes.Standard' ">
     <Reference Include="Elements" />
     <Reference Include="Echoes" />
