@@ -84,6 +84,8 @@ type
       Cookies := new WebCookieCollection;
       BufferOutput := true;
       ContentEncoding := Encoding;
+      ContentType := "text/html";
+      Charset := "utf-8";
     end;
 
     property HttpServerResponse: HttpServerResponse; readonly;

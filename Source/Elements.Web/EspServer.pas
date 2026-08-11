@@ -48,7 +48,10 @@ type
             var lPort := aEventArgs.Connection.Binding.Port;
             with matching lLocalEndPoint := IPEndPoint(aEventArgs.Connection.LocalEndPoint) do
               lPort := lLocalEndPoint.Port;
-            var lScheme := "http"; // for now
+            var lScheme := "http";
+            var lForwardedScheme := aEventArgs.Request.Header["X-Forwarded-Proto"]:Value:SubstringToFirstOccurrenceOf(","):Trim;
+            if caseInsensitive(lForwardedScheme) in ["http", "https"] then
+              lScheme := lForwardedScheme as not nullable;
             var lUrl := Url.UrlWithComponents(lScheme, lHost, lPort, lRequestPath, lRequestQuery, nil, nil);
             var lContext := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl, aEventArgs.Connection.RemoteEndPoint, aEventArgs.Connection.LocalEndPoint), new WebResponse(aEventArgs.Response));
             lContext.Server := new WebServerForContext(self, lContext);
@@ -153,7 +156,7 @@ type
               if assigned(lResourceName) then begin
 
                 if defined("ECHOES") then begin
-                  var lAssembly := System.Reflection.Assembly.GetEntryAssembly;
+                  var lAssembly := PageFactory.GetType.Assembly;
 
                   var lStream := lAssembly.GetManifestResourceStream(lResourceName);
                   if assigned(lStream) then begin
@@ -193,15 +196,24 @@ type
 
       except
         on E: Exception do begin
+          Log($"Unhandled ESP request exception for '{aEventArgs.Request.Path}': {E}");
           aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
           //aEventArgs.Response.Header["Content-Type"] := "text/html";
           aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.InternalServerError;
-          aEventArgs.Response.ContentString := RenderErrorPage(
-            Integer(aEventArgs.Response.HttpCode),
-            "Internal Server Error",
-            aEventArgs.Request.Path,
-            nil,
-            E);
+          try
+            aEventArgs.Response.ContentString := RenderErrorPage(
+              Integer(aEventArgs.Response.HttpCode),
+              "Internal Server Error",
+              aEventArgs.Request.Path,
+              nil,
+              E);
+          except
+            on lRenderException: Exception do begin
+              Log($"Could not render the ESP error page: {lRenderException}");
+              aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/plain; charset=utf-8");
+              aEventArgs.Response.ContentString := $"500 Internal Server Error\n\n{E}";
+            end;
+          end;
         end;
       end;
     end;
@@ -271,8 +283,43 @@ type
       fServer.Close();
     end;
 
+    method OpenFile(aVirtualPath: not nullable String): nullable Stream; assembly;
+    begin
+      var lPath := aVirtualPath.Replace("\", "/");
+      if lPath.StartsWith("~/") then
+        lPath := lPath.Substring(1);
+      if not lPath.StartsWith("/") then
+        lPath := "/"+lPath;
+
+      if length(PhysicalRootFolder) > 0 then begin
+        var lFileName := PhysicalRootFolder as not nullable;
+        for each lPart in lPath.Split("/") do begin
+          if length(lPart) = 0 then
+            continue;
+          if (lPart = ".") or (lPart = "..") then
+            exit;
+          lFileName := Path.Combine(lFileName, lPart);
+        end;
+        if lFileName.FileExists then
+          exit new FileStream(lFileName, FileOpenMode.ReadOnly);
+      end;
+
+      var lResourceName := PageFactory:FindEmbeddedResourceForPath(lPath);
+      if not assigned(lResourceName) then
+        exit;
+
+      {$IF ECHOES}
+      var lStream := PageFactory.GetType.Assembly.GetManifestResourceStream(lResourceName);
+      if assigned(lStream) then
+        result := new WrappedPlatformStream(lStream);
+      {$ELSE}
+      raise new NotImplementedException("Reading embedded web resources is not yet implemented for this platform.");
+      {$ENDIF}
+    end;
+
     property PageFactory: WebPageFactory;
     property PhysicalRootFolder: nullable String;
+    property PhysicalBinFolder: nullable String;
     property DebugMode: Boolean;
     property ErrorPaths := new Dictionary<Integer,String>;
 
@@ -472,6 +519,8 @@ type
 
       if caseInsensitive(lFirstPart) in ["bin", "app_code", "app_data", ".esp"] then
         exit;
+      if IsFileInFolder(lFileName, PhysicalBinFolder) then
+        exit;
       if caseInsensitive(lFileName.LastPathComponent) = "web.config" then
         exit;
       if caseInsensitive(lFileName.PathExtension) in [".aspx", ".ascx", ".master", ".ashx", ".asmx", ".pas", ".cs", ".swift", ".java", ".vb", ".go"] then
@@ -482,6 +531,17 @@ type
       aEventArgs.Response.Header.SetHeaderValue("Content-Type", ContentTypeForFileName(lFileName));
       aEventArgs.Response.ContentStream := new FileStream(lFileName, FileOpenMode.ReadOnly);
       result := true;
+    end;
+
+    class method IsFileInFolder(aFileName: not nullable String; aFolder: nullable String): Boolean;
+    begin
+      if length(aFolder) = 0 then
+        exit false;
+
+      var lFileName := Path.GetFullPath(aFileName);
+      var lFolder := Path.GetFullPath(aFolder as not nullable).TrimEnd(Path.DirectorySeparatorChar);
+      result := (lFileName.ToLowerInvariant = lFolder.ToLowerInvariant) or
+                lFileName.ToLowerInvariant.StartsWith((lFolder+Path.DirectorySeparatorChar).ToLowerInvariant);
     end;
 
     class method ContentTypeForFileName(aFileName: not nullable String): not nullable String;
@@ -512,6 +572,11 @@ type
 
   WebServerForContext = public class
   public
+
+    method OpenFile(aVirtualPath: not nullable String): nullable Stream;
+    begin
+      result := WebServer.OpenFile(aVirtualPath);
+    end;
 
     method MapPath(aPath: nullable String): nullable String;
     begin
@@ -653,6 +718,7 @@ type
     method FindClassForPath(aPath: not nullable String): nullable Object; abstract;
     method FindRedirectForPath(aPath: not nullable String): nullable String; abstract;
     method FindResourcesForPath(aPath: not nullable String): nullable String; virtual; empty;
+    method FindEmbeddedResourceForPath(aPath: not nullable String): nullable String; virtual; empty;
 
     method DoFindClassForPath(aPath: not nullable String): nullable Object;
     begin

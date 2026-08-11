@@ -57,6 +57,7 @@
     <Compile Include="HttpUtilityTests.pas" />
     <Compile Include="IntegrationTests.pas" />
     <Compile Include="NameValueCollectionTests.pas" />
+    <Compile Include="ResponseTests.pas" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\RemObjects Software\Elements\RemObjects.Elements.Echoes.targets" />
 </Project>

@@ -209,6 +209,31 @@ type
     class property AppDomainAppPath: nullable String read GetAppDomainAppPath;
     class property AppDomainAppVirtualPath: String read GetAppDomainAppVirtualPath;
 
+    class method OpenFile(aVirtualPath: not nullable String): nullable Stream;
+    begin
+      result := WebContext.Current:Server:OpenFile(aVirtualPath);
+    end;
+
+    class method ReadTextFile(aVirtualPath: not nullable String): nullable String;
+    begin
+      using lStream := OpenFile(aVirtualPath) do begin
+        if not assigned(lStream) then
+          exit;
+        if lStream.Length > Int32.MaxValue then
+          raise new IOException($"Web resource '{aVirtualPath}' is too large to read as text.");
+
+        var lBytes := new Byte[Integer(lStream.Length)];
+        var lOffset := 0;
+        while lOffset < length(lBytes) do begin
+          var lRead := lStream.Read(lBytes, lOffset, length(lBytes)-lOffset);
+          if lRead = 0 then
+            break;
+          inc(lOffset, lRead);
+        end;
+        result := Encoding.UTF8.GetString(lBytes, 0, lOffset);
+      end;
+    end;
+
   private
 
     class method GetAppDomainAppPath: nullable String;

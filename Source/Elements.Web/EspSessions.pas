@@ -83,7 +83,7 @@ type
 
     class method FindOrCreateSession(aContext: not nullable WebContext): not nullable WebSessionState;
     begin
-      var lSessionCookie := coalesce(aContext.Request.Cookies[SESSION_ID_COOKIE_NAME], aContext.Request.Cookies[LEGACY_SESSION_ID_COOKIE_NAME]);
+      var lSessionCookie := aContext.Request.Cookies[SESSION_ID_COOKIE_NAME];
       var lSessionID := coalesce(lSessionCookie:Values["ID"], lSessionCookie:Values[""]);
       if assigned(lSessionID) then begin
         //Log($"Looking for session with id {lSessionID}");
@@ -129,8 +129,7 @@ type
     end;
 
     const DEFAULT_SESSION_TIMEOUT_MINUTES = 10;
-    const SESSION_ID_COOKIE_NAME = "ASP.NET_SessionId";
-    const LEGACY_SESSION_ID_COOKIE_NAME = "ESP_Session";
+    const SESSION_ID_COOKIE_NAME = "EspSessionId";
 
   end;
 end.
