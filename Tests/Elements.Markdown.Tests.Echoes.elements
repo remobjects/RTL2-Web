@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build" ToolsVersion="4.0">
+  <PropertyGroup>
+    <RootNamespace>RTL2.Markdown.Tests</RootNamespace>
+    <ProjectGuid>{CD279619-7B1A-4B79-B20D-0CF2B5B89062}</ProjectGuid>
+    <OutputType>exe</OutputType>
+    <AssemblyName>RTL2.Markdown.Tests.Echoes</AssemblyName>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <TargetFramework>.NETFramework4.8</TargetFramework>
+    <DefaultUses>RemObjects.Elements.RTL</DefaultUses>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="mscorlib" />
+    <Reference Include="System" />
+    <Reference Include="RemObjects.Elements.EUnit">
+      <HintPath>..\..\Elements\Bin\References\Echoes\NET\RemObjects.Elements.EUnit.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <ProjectReference Include="..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Echoes.elements">
+      <Project>{A0B2BF66-F2B1-4EF9-A9CE-792AB3094233}</Project>
+      <ProjectFile>..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Echoes.elements</ProjectFile>
+      <Private>True</Private>
+    </ProjectReference>
+    <Reference Include="Elements.Markdown">
+      <HintPath>..\Source\Elements.Markdown\Bin\Debug\Elements.Markdown.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Markdown.Program.pas" />
+    <Compile Include="Markdown.pas" />
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath)\RemObjects Software\Elements\RemObjects.Elements.Echoes.targets" />
+</Project>
