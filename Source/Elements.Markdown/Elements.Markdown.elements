@@ -98,51 +98,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="#"/>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Echoes.Full'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Echoes.elements"><Project>{A0B2BF66-F2B1-4EF9-A9CE-792AB3094233}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Echoes.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Echoes.Core'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Echoes.Core.elements"><Project>{E799F486-0C6D-4E9C-ACEE-B36BB941A918}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Echoes.Core.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Echoes.Standard'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Echoes.Standard.elements"><Project>{B42BF0FD-E746-4A64-A0DF-AF8FFF55DAE5}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Echoes.Standard.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Cooper'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Cooper.elements"><Project>{F9717E15-88BC-4853-8D07-8DBAD8C0B2A9}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Cooper.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Island.Windows'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Windows.elements"><Project>{6F888992-4293-4097-8AA3-6667E0187D4F}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Windows.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Island.Linux'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Linux.elements"><Project>{163F84DC-DC6B-4535-994F-0865D3A84D20}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Linux.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Island.Darwin.macOS'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Darwin.macOS.elements"><Project>{731DF15E-9EE5-452A-A74D-BCBC95AFAA23}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Darwin.macOS.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Island.Darwin.iOS'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Darwin.iOS.elements"><Project>{0723254E-06EA-46F9-B67F-4D143810A08E}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Darwin.iOS.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Island.Darwin.tvOS'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Darwin.tvOS.elements"><Project>{7BE9FACF-063C-4230-A4DA-D9F9D08CFCF8}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Darwin.tvOS.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Island.Android'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Android.elements"><Project>{CF39233B-8FEB-470C-9E41-4C1944473C1C}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.Android.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Island.WebAssembly'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.WebAssembly.elements"><Project>{E663418D-2453-4C69-8362-02CC6ABEAFA7}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Island.WebAssembly.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Toffee.macOS'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Toffee.macOS.elements"><Project>{58D52FE5-E87E-4D9C-8FBB-280980F6762B}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Toffee.macOS.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Toffee.iOS'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Toffee.iOS.elements"><Project>{EC0982C8-700B-4085-A401-59460E394DAA}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Toffee.iOS.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Toffee.tvOS'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Toffee.tvOS.elements"><Project>{2593A307-BF8B-4218-BC8A-0C09F4D314AA}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Toffee.tvOS.elements</ProjectFile><Private>True</Private></ProjectReference>
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Toffee.watchOS'">
-    <ProjectReference Include="..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Toffee.watchOS.elements"><Project>{E1E9CB29-553D-4EA9-B9D1-62A5195BDD10}</Project><ProjectFile>..\..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Toffee.watchOS.elements</ProjectFile><Private>True</Private></ProjectReference>
+    <Reference Include="Elements"/>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Markdown.pas" />
