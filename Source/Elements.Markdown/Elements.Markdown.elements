@@ -8,6 +8,7 @@
     <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
     <CrossPlatform>True</CrossPlatform>
     <MangleTypeNames>True</MangleTypeNames>
+    <DefaultUses>RemObjects.Elements.RTL</DefaultUses>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Target)' == 'Echoes.Full'">
     <Mode>Echoes</Mode>
@@ -97,8 +98,8 @@
     <DefaultUses>Foundation;RemObjects.Elements.RTL;RemObjects.Elements.Linq</DefaultUses>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="#"/>
-    <Reference Include="Elements"/>
+    <Reference Include="#" />
+    <Reference Include="Elements" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Markdown.pas" />

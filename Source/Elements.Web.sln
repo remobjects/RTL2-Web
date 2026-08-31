@@ -1,0 +1,54 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# RemObjects Fire
+Project("{656346d9-4656-40da-a068-22d5425d4639}") = "Elements.Markdown", "Elements.Markdown\Elements.Markdown.elements", "{2fa119a2-30cd-4c3f-8953-d1186b4957c8}"
+EndProject
+Project("{656346d9-4656-40da-a068-22d5425d4639}") = "Elements.Markdown.Tests.Echoes", "..\Tests\Elements.Markdown.Tests.Echoes.elements", "{cd279619-7b1a-4b79-b20d-0cf2b5b89062}"
+EndProject
+Project("{656346d9-4656-40da-a068-22d5425d4639}") = "Elements.Web", "Elements.Web\Elements.Web.elements", "{19eb550e-1850-4b96-9677-07b444595c7b}"
+EndProject
+Project("{656346d9-4656-40da-a068-22d5425d4639}") = "Elements.Web.ROSDK", "Elements.Web.ROSDK\Elements.Web.ROSDK.elements", "{38fd6097-7f00-459e-b0cc-f13ed68662ad}"
+EndProject
+Project("{656346d9-4656-40da-a068-22d5425d4639}") = "Elements.Web.Tests", "..\Tests\Elements.Web.Tests.elements", "{74555101-2da0-46b1-9186-20c6f1f237d8}"
+EndProject
+Project("{656346d9-4656-40da-a068-22d5425d4639}") = "TestSite", "..\Tests\TestSite\TestSite.elements", "{aab7f2c7-6f61-41af-bfd1-39988c8d32f4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|AnyCPU = Debug|AnyCPU
+		Release|AnyCPU = Release|AnyCPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2fa119a2-30cd-4c3f-8953-d1186b4957c8}.Debug|AnyCPU.ActiveCfg = Debug|AnyCPU
+		{2fa119a2-30cd-4c3f-8953-d1186b4957c8}.Debug|AnyCPU.Build.0 = Debug|AnyCPU
+		{2fa119a2-30cd-4c3f-8953-d1186b4957c8}.Release|AnyCPU.ActiveCfg = Release|AnyCPU
+		{2fa119a2-30cd-4c3f-8953-d1186b4957c8}.Release|AnyCPU.Build.0 = Release|AnyCPU
+		{cd279619-7b1a-4b79-b20d-0cf2b5b89062}.Debug|AnyCPU.ActiveCfg = Debug|AnyCPU
+		{cd279619-7b1a-4b79-b20d-0cf2b5b89062}.Debug|AnyCPU.Build.0 = Debug|AnyCPU
+		{cd279619-7b1a-4b79-b20d-0cf2b5b89062}.Release|AnyCPU.ActiveCfg = Release|AnyCPU
+		{cd279619-7b1a-4b79-b20d-0cf2b5b89062}.Release|AnyCPU.Build.0 = Release|AnyCPU
+		{19eb550e-1850-4b96-9677-07b444595c7b}.Debug|AnyCPU.ActiveCfg = Debug|AnyCPU
+		{19eb550e-1850-4b96-9677-07b444595c7b}.Debug|AnyCPU.Build.0 = Debug|AnyCPU
+		{19eb550e-1850-4b96-9677-07b444595c7b}.Release|AnyCPU.ActiveCfg = Release|AnyCPU
+		{19eb550e-1850-4b96-9677-07b444595c7b}.Release|AnyCPU.Build.0 = Release|AnyCPU
+		{38fd6097-7f00-459e-b0cc-f13ed68662ad}.Debug|AnyCPU.ActiveCfg = Debug|AnyCPU
+		{38fd6097-7f00-459e-b0cc-f13ed68662ad}.Debug|AnyCPU.Build.0 = Debug|AnyCPU
+		{38fd6097-7f00-459e-b0cc-f13ed68662ad}.Release|AnyCPU.ActiveCfg = Release|AnyCPU
+		{38fd6097-7f00-459e-b0cc-f13ed68662ad}.Release|AnyCPU.Build.0 = Release|AnyCPU
+		{74555101-2da0-46b1-9186-20c6f1f237d8}.Debug|AnyCPU.ActiveCfg = Debug|AnyCPU
+		{74555101-2da0-46b1-9186-20c6f1f237d8}.Debug|AnyCPU.Build.0 = Debug|AnyCPU
+		{74555101-2da0-46b1-9186-20c6f1f237d8}.Release|AnyCPU.ActiveCfg = Release|AnyCPU
+		{74555101-2da0-46b1-9186-20c6f1f237d8}.Release|AnyCPU.Build.0 = Release|AnyCPU
+		{aab7f2c7-6f61-41af-bfd1-39988c8d32f4}.Debug|AnyCPU.ActiveCfg = Debug|AnyCPU
+		{aab7f2c7-6f61-41af-bfd1-39988c8d32f4}.Debug|AnyCPU.Build.0 = Debug|AnyCPU
+		{aab7f2c7-6f61-41af-bfd1-39988c8d32f4}.Release|AnyCPU.ActiveCfg = Release|AnyCPU
+		{aab7f2c7-6f61-41af-bfd1-39988c8d32f4}.Release|AnyCPU.Build.0 = Release|AnyCPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(RemObjectsSolutionTree) = preSolution
+		ProjectOrder = 2fa119a2-30cd-4c3f-8953-d1186b4957c8;cd279619-7b1a-4b79-b20d-0cf2b5b89062;19eb550e-1850-4b96-9677-07b444595c7b;38fd6097-7f00-459e-b0cc-f13ed68662ad;74555101-2da0-46b1-9186-20c6f1f237d8;aab7f2c7-6f61-41af-bfd1-39988c8d32f4
+		RootOrder = 2fa119a2-30cd-4c3f-8953-d1186b4957c8;cd279619-7b1a-4b79-b20d-0cf2b5b89062;19eb550e-1850-4b96-9677-07b444595c7b;38fd6097-7f00-459e-b0cc-f13ed68662ad;74555101-2da0-46b1-9186-20c6f1f237d8;aab7f2c7-6f61-41af-bfd1-39988c8d32f4
+	EndGlobalSection
+EndGlobal
