@@ -75,31 +75,33 @@ type
     end;
   end;
 
-  WebResponseTextWriter = assembly class(System.IO.TextWriter)
+
+  WebResponseTextWriter = public class({$IF ECHOES}System.IO.TextWriter{$ENDIF})
   public
+
     constructor(aResponse: not nullable WebResponse);
     begin
       fResponse := aResponse;
     end;
 
-    property Encoding: Encoding read fResponse.ContentEncoding; override;
+    property Encoding: Encoding read fResponse.ContentEncoding; {$IF ECHOES}override;{$ENDIF}
 
-    method Flush; override;
+    method Flush; {$IF ECHOES}override;{$ENDIF}
     begin
       fResponse.Flush;
     end;
 
-    method &Write(aValue: Char); override;
+    method &Write(aValue: Char); {$IF ECHOES}override;{$ENDIF}
     begin
       fResponse.Write(aValue);
     end;
 
-    method &Write(aBuffer: array of Char; aIndex: Integer; aCount: Integer); override;
+    method &Write(aBuffer: array of Char; aIndex: Integer; aCount: Integer); {$IF ECHOES}override;{$ENDIF}
     begin
       fResponse.Write(aBuffer, aIndex, aCount);
     end;
 
-    method &Write(aValue: nullable String); override;
+    method &Write(aValue: nullable String); {$IF ECHOES}override;{$ENDIF}
     begin
       fResponse.Write(aValue);
     end;
@@ -359,7 +361,7 @@ type
     //property ClientDisconnectedToken: System.Threading.CancellationToken; readonly; public;
     property IsRequestBeingRedirected: Boolean read assembly write; public;
     property RedirectLocation: nullable String; public;
-    property Output: System.IO.TextWriter := new WebResponseTextWriter(self); readonly; lazy;
+    property Output: WebResponseTextWriter := new WebResponseTextWriter(self); readonly; lazy;
     {$IF ROSDK}
     {$ELSE}
     property OutputStream: Stream read HttpServerResponse.ContentStream;
