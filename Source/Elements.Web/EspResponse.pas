@@ -75,6 +75,39 @@ type
     end;
   end;
 
+  WebResponseTextWriter = assembly class(System.IO.TextWriter)
+  public
+    constructor(aResponse: not nullable WebResponse);
+    begin
+      fResponse := aResponse;
+    end;
+
+    property Encoding: Encoding read fResponse.ContentEncoding; override;
+
+    method Flush; override;
+    begin
+      fResponse.Flush;
+    end;
+
+    method &Write(aValue: Char); override;
+    begin
+      fResponse.Write(aValue);
+    end;
+
+    method &Write(aBuffer: array of Char; aIndex: Integer; aCount: Integer); override;
+    begin
+      fResponse.Write(aBuffer, aIndex, aCount);
+    end;
+
+    method &Write(aValue: nullable String); override;
+    begin
+      fResponse.Write(aValue);
+    end;
+
+  private
+    fResponse: not nullable WebResponse;
+  end;
+
   WebResponse = public class
   public
     constructor(aResponse: HttpServerResponse);
@@ -326,7 +359,7 @@ type
     //property ClientDisconnectedToken: System.Threading.CancellationToken; readonly; public;
     property IsRequestBeingRedirected: Boolean read assembly write; public;
     property RedirectLocation: nullable String; public;
-    //property Output: System.IO.TextWriter; public;
+    property Output: System.IO.TextWriter := new WebResponseTextWriter(self); readonly; lazy;
     {$IF ROSDK}
     {$ELSE}
     property OutputStream: Stream read HttpServerResponse.ContentStream;
