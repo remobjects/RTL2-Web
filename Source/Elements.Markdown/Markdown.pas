@@ -4,6 +4,8 @@
 // dependency on MarkdownDeep, CocoaMarkdown, or platform framework APIs.
 
 type
+  MarkdownDialect = public enum (CommonMark, GitHub);
+
   MarkdownOptions = public class
   public
     property AllowRawHtml: Boolean;
@@ -12,6 +14,7 @@ type
     property EnableTaskLists: Boolean;
     property EnableAutolinks: Boolean;
     property GenerateHeadingIds: Boolean;
+    property EnableGitHubAlerts: Boolean;
     property IncludeMermaidRuntime: Boolean;
 
     constructor;
@@ -21,6 +24,27 @@ type
       EnableTaskLists := true;
       EnableAutolinks := true;
       GenerateHeadingIds := true;
+      EnableGitHubAlerts := true;
+    end;
+
+    constructor withDialect(aDialect: MarkdownDialect);
+    begin
+      EnableTables := aDialect = MarkdownDialect.GitHub;
+      EnableStrikethrough := aDialect = MarkdownDialect.GitHub;
+      EnableTaskLists := aDialect = MarkdownDialect.GitHub;
+      EnableAutolinks := true;
+      GenerateHeadingIds := aDialect = MarkdownDialect.GitHub;
+      EnableGitHubAlerts := aDialect = MarkdownDialect.GitHub;
+    end;
+
+    class method CommonMark: not nullable MarkdownOptions;
+    begin
+      result := new MarkdownOptions withDialect(MarkdownDialect.CommonMark);
+    end;
+
+    class method GitHub: not nullable MarkdownOptions;
+    begin
+      result := new MarkdownOptions withDialect(MarkdownDialect.GitHub);
     end;
 
     class property Default: not nullable MarkdownOptions := new MarkdownOptions;
@@ -72,6 +96,17 @@ type
     class method EscapeAttribute(aValue: nullable String): not nullable String;
     begin
       result := EscapeText(aValue).Replace("""", "&quot;");
+    end;
+
+    class method AppendEscapedCharacter(aOutput: not nullable StringBuilder; aCharacter: Char);
+    begin
+      case aCharacter of
+        '&': aOutput.Append("&amp;");
+        '<': aOutput.Append("&lt;");
+        '>': aOutput.Append("&gt;");
+      else
+        aOutput.Append(aCharacter);
+      end;
     end;
 
     class method Lines(aSource: not nullable String): not nullable List<String>;
@@ -158,6 +193,54 @@ type
       for each lCell in lValue.Split('|') do result.Add(lCell:Trim);
     end;
 
+    class method TableAlignments(aLine: not nullable String): not nullable List<String>;
+    begin
+      result := new List<String>;
+      for each lCell in TableCells(aLine) do begin
+        var lCellTrimmed := lCell:Trim;
+        var lStartsWithColon := lCellTrimmed.StartsWith(":");
+        var lEndsWithColon := lCellTrimmed.EndsWith(":");
+        if lStartsWithColon and lEndsWithColon then
+          result.Add("center")
+        else if lEndsWithColon then
+          result.Add("right")
+        else
+          result.Add("left");
+      end;
+    end;
+
+    class method TableAlignmentAttribute(aAlignments: not nullable List<String>; aIndex: Integer): not nullable String;
+    begin
+      if aIndex >= aAlignments.Count then
+        exit "";
+      result := " style=""text-align: " + aAlignments[aIndex] + ";""";
+    end;
+
+    class method QuoteContent(aLine: not nullable String; out aContent: String): Boolean;
+    begin
+      aContent := "";
+      var lTrimmed := aLine:Trim;
+      if not lTrimmed.StartsWith(">") then
+        exit false;
+      aContent := lTrimmed.Substring(1);
+      if aContent.StartsWith(" ") then
+        aContent := aContent.Substring(1);
+      result := true;
+    end;
+
+    class method AlertKind(aText: not nullable String): nullable String;
+    begin
+      var lText := aText:Trim;
+      if not lText.StartsWith("[!") then
+        exit;
+      var lEnd := lText.IndexOf(']');
+      if lEnd < 3 then
+        exit;
+      var lKind := lText.Substring(2, lEnd - 2):ToLower;
+      if lKind in ["note", "tip", "important", "warning", "caution"] then
+        result := lKind;
+    end;
+
     class method Slug(aText: not nullable String; aCounts: not nullable Dictionary<String, Integer>): not nullable String;
     begin
       var lBuilder := new StringBuilder;
@@ -180,7 +263,7 @@ type
       var i := 0;
       while i < aText.Length do begin
         if (aText[i] = '\\') and (i + 1 < aText.Length) then begin
-          lOutput.Append(EscapeText(aText[i + 1].ToString)); inc(i, 2); continue;
+          AppendEscapedCharacter(lOutput, aText[i + 1]); inc(i, 2); continue;
         end;
         if aOptions.AllowRawHtml and (aText[i] = '<') then begin
           var lEnd := aText.IndexOf('>', i + 1);
@@ -225,7 +308,7 @@ type
             if lEnd >= 0 then begin lOutput.Append("<a href="""); lOutput.Append(EscapeAttribute(aText.Substring(lBracket + 2, lEnd - lBracket - 2))); lOutput.Append(""">"); lOutput.Append(&Inline(aText.Substring(i + 1, lBracket - i - 1), aOptions)); lOutput.Append("</a>"); i := lEnd + 1; continue; end;
           end;
         end;
-        lOutput.Append(EscapeText(aText[i].ToString)); inc(i);
+        AppendEscapedCharacter(lOutput, aText[i]); inc(i);
       end;
       result := lOutput.ToString;
     end;
@@ -275,11 +358,34 @@ type
           lOutput.Append(">" + &Inline(lHeadingText, aOptions) + "</h" + lLevel.ToString + ">" + #10); inc(i); continue;
         end;
         if IsThematicBreak(lLines[i]) then begin lOutput.Append("<hr />" + #10); inc(i); continue; end;
+        var lQuoteContent: String;
+        if QuoteContent(lLines[i], out lQuoteContent) then begin
+          var lQuoteLines := new List<String>;
+          while (i < lLines.Count) and QuoteContent(lLines[i], out lQuoteContent) do begin
+            lQuoteLines.Add(lQuoteContent);
+            inc(i);
+          end;
+
+          var lAlertKind := if aOptions.EnableGitHubAlerts and (lQuoteLines.Count > 0) then AlertKind(lQuoteLines[0]) else nil;
+          if assigned(lAlertKind) then
+            lQuoteLines.RemoveAt(0);
+
+          lOutput.Append("<blockquote");
+          if assigned(lAlertKind) then
+            lOutput.Append(" class=""elements-markdown-alert elements-markdown-alert-" + lAlertKind + """");
+          lOutput.Append(">" + #10);
+          if assigned(lAlertKind) then
+            lOutput.Append("<p class=""elements-markdown-alert-title""><strong>" + lAlertKind:Substring(0, 1):ToUpper + lAlertKind:Substring(1) + "</strong></p>" + #10);
+          if lQuoteLines.Count > 0 then
+            lOutput.Append("<p>" + &Inline(lQuoteLines.JoinedString(#10), aOptions).Replace(String(#10), "<br />" + #10) + "</p>" + #10);
+          lOutput.Append("</blockquote>" + #10);
+          continue;
+        end;
         if aOptions.EnableTables and (i + 1 < lLines.Count) and lLines[i].Contains("|") and IsTableDelimiter(lLines[i + 1]) then begin
-          var lHeaders := TableCells(lLines[i]); lOutput.Append("<table><thead><tr>");
-          for each lCell in lHeaders do lOutput.Append("<th>" + &Inline(lCell, aOptions) + "</th>");
+          var lHeaders := TableCells(lLines[i]); var lAlignments := TableAlignments(lLines[i + 1]); lOutput.Append("<table><thead><tr>");
+          for each lCell in lHeaders index lCellIndex do lOutput.Append("<th" + TableAlignmentAttribute(lAlignments, lCellIndex) + ">" + &Inline(lCell, aOptions) + "</th>");
           lOutput.Append("</tr></thead><tbody>" + #10); i := i + 2;
-          while (i < lLines.Count) and lLines[i].Contains("|") and not IsBlank(lLines[i]) do begin var lCells := TableCells(lLines[i]); lOutput.Append("<tr>"); for each lCell in lCells do lOutput.Append("<td>" + &Inline(lCell, aOptions) + "</td>"); lOutput.Append("</tr>" + #10); inc(i); end;
+          while (i < lLines.Count) and lLines[i].Contains("|") and not IsBlank(lLines[i]) do begin var lCells := TableCells(lLines[i]); lOutput.Append("<tr>"); for each lCell in lCells index lCellIndex do lOutput.Append("<td" + TableAlignmentAttribute(lAlignments, lCellIndex) + ">" + &Inline(lCell, aOptions) + "</td>"); lOutput.Append("</tr>" + #10); inc(i); end;
           lOutput.Append("</tbody></table>" + #10); continue;
         end;
         if lLines[i]:Trim.StartsWith("- ") or lLines[i]:Trim.StartsWith("* ") then begin

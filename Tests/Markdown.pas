@@ -27,6 +27,30 @@ type
       Check.IsTrue(Markdown.ToHtml("<span>safe caller choice</span>", lOptions).Contains("<span>safe caller choice</span>"));
     end;
 
+    method PreservesUnicodeInlineText;
+    begin
+      var lText := "sealed — café Ω 🚀";
+      Check.IsTrue(Markdown.ToHtml(lText).Contains(lText));
+    end;
+
+    method RendersBlockquotesAlertsAndTableAlignment;
+    begin
+      var lHtml := Markdown.ToHtml("> [!NOTE]" + #10 + "> Keep shared behavior aligned." + #10 + #10 + "| Left | Center | Right |" + #10 + "| :--- | :---: | ---: |" + #10 + "| A | B | C |");
+      Check.IsTrue(lHtml.Contains("<blockquote class=""elements-markdown-alert elements-markdown-alert-note"">"));
+      Check.IsTrue(lHtml.Contains("<strong>Note</strong>"));
+      Check.IsTrue(lHtml.Contains("Keep shared behavior aligned."));
+      Check.IsTrue(lHtml.Contains("<th style=""text-align: center;"">Center</th>"));
+      Check.IsTrue(lHtml.Contains("<td style=""text-align: right;"">C</td>"));
+    end;
+
+    method AllowsGitHubExtensionsToBeDisabled;
+    begin
+      var lHtml := Markdown.ToHtml("> [!NOTE]" + #10 + "> This remains an ordinary quote.", MarkdownOptions.CommonMark);
+      Check.IsTrue(lHtml.Contains("<blockquote>"));
+      Check.IsFalse(lHtml.Contains("elements-markdown-alert"));
+      Check.IsTrue(lHtml.Contains("[!NOTE]"));
+    end;
+
     method RendersMermaidAndOrdinaryCodeFencesDifferently;
     begin
       var lHtml := Markdown.ToHtml("~~~mermaid" + #10 + "flowchart LR" + #10 + "A-->B" + #10 + "~~~" + #10 + #10 + "~~~pas" + #10 + "method Test;" + #10 + "~~~");
