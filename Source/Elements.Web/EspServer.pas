@@ -163,6 +163,7 @@ type
                   var lStream := lAssembly.GetManifestResourceStream(lResourceName);
                   if assigned(lStream) then begin
                     //Log($"{lRequestPath} served as resource {lResourceName}");
+                    aEventArgs.Response.Header.SetHeaderValue("Content-Type", ContentTypeForFileName(lRequestPath));
                     aEventArgs.Response.ContentStream := new WrappedPlatformStream(lStream);
                   end
                   else begin
