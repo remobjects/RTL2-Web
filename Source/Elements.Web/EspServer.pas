@@ -69,6 +69,7 @@ type
                   var lPage := lObject as Page;
                   lPage.Context := lContext;
                   lContext.Request.Page := lPage;
+                  lPage.Initialize(new EventArgs);
                   lPage.OnLoad(new EventArgs);
                   lPage.RenderControl(nil);
                   lPage.OnUnLoad(new EventArgs);

@@ -51,8 +51,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AutoWire.aspx.pas" />
+    <Compile Include="Lifecycle.aspx.pas" />
     <None Include="Default.aspx" />
     <None Include="AutoWire.aspx" />
+    <None Include="Lifecycle.aspx" />
+    <None Include="Panel.aspx" />
     <None Include="InlineScript.aspx" />
     <None Include="Site.master" />
     <None Include="Nested.aspx" />
@@ -61,6 +64,8 @@
     <None Include="NestedChild.master" />
     <None Include="Controls\EchoControl.ascx" />
     <None Include="Ping.ashx" />
+    <None Include="RouteConflict.aspx" />
+    <None Include="RouteConflict.ashx" />
     <None Include="Response.ashx" />
     <None Include="Upload.ashx" />
     <None Include="Error.ashx" />

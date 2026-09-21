@@ -42,8 +42,14 @@ type
 
     end;
 
+    event Init: EventHandler;
     event Load: EventHandler;
     event UnLoad: EventHandler;
+
+    method Initialize(e: EventArgs); assembly;
+    begin
+      OnInit(e);
+    end;
 
     method OnLoad(e: EventArgs); public; virtual;
     begin
@@ -59,6 +65,12 @@ type
 
   protected
 
+    method OnInit(e: EventArgs); virtual;
+    begin
+      if assigned(Init) then
+        Init(self, e);
+    end;
+
     method CreateDelegate(aInstance: not nullable Object; aMethod: not nullable &Method): not nullable EventHandler;
     begin
       {$IF ECHOES}
@@ -70,6 +82,8 @@ type
 
     method AutoEventWireup;
     begin
+      with matching lMethod := FindAutoEventHandler("Page_Init") do
+        Init += CreateDelegate(self, lMethod);
       with matching lMethod := FindAutoEventHandler("Page_Load") do
         Load += CreateDelegate(self, lMethod);
       with matching lMethod := FindAutoEventHandler("Page_UnLoad") do
@@ -110,12 +124,36 @@ type
   UserControl = public class(Control)
   end;
 
+  Panel = public class(Control)
+  public
+    constructor;
+    begin
+      Visible := true;
+    end;
+
+    property CssClass: nullable String;
+
+    method RenderBegin;
+    begin
+      if length(CssClass) > 0 then
+        Response.Write(##"""<div id="{{HttpUtility.HtmlEncode(ID)}}" class="{{HttpUtility.HtmlEncode(CssClass)}}">""")
+      else
+        Response.Write(##"""<div id="{{HttpUtility.HtmlEncode(ID)}}">""");
+    end;
+
+    method RenderEnd;
+    begin
+      Response.Write(##"""</div>""");
+    end;
+  end;
+
   Page = public class(UserControl)
   public
     property Header: WebPageHeader :=  new WebPageHeader(); readonly; lazy;
 
     property Title: String read Header:Title write Header:Title;
     property Master: MasterPage;
+    property Items: WebContextItems read Context.Items;
 
     property Head: WebPageHeader read Header; {$HINT really?}
   end;

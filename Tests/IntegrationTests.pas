@@ -182,6 +182,16 @@ type
 
         Assert.AreEqual(GetString("/Ping.ashx?value=ok"), "handler=ok");
         Assert.AreEqual(GetString("/Ping.ashx?value=ok&current=1"), "current=ok");
+
+        var lPanelPage := GetString("/Panel.aspx");
+        Assert.IsTrue(lPanelPage.Contains(##"""<div id="VisiblePanel" class="visible-panel">"""));
+        Assert.IsTrue(lPanelPage.Contains("visible child"));
+        Assert.IsFalse(lPanelPage.Contains("hidden-panel"));
+        Assert.IsFalse(lPanelPage.Contains("hidden child"));
+
+        Assert.AreEqual(GetString("/RouteConflict.aspx").Trim, "page");
+        Assert.AreEqual(GetString("/RouteConflict.ashx"), "handler");
+        Assert.AreEqual(GetString("/RouteConflict").Trim, "page");
         Assert.IsTrue(GetString("/Static/hello.txt").StartsWith("hello from embedded resource"));
         Assert.AreEqual(PostMultipartString("/Upload.ashx"), "form-title=Upload Title;files=1;key=sample;name=hello.txt;type=text/plain;length=12;stream=12;saved=hello upload");
 
@@ -220,6 +230,28 @@ type
       var lProcess := StartTestSite;
       try
         Assert.IsTrue(GetString("/AutoWire.aspx").Contains("auto-wire=protected-inherited-load"));
+      finally
+        StopTestSite(lProcess);
+      end;
+    end;
+
+    method OnInitRunsBeforePageLoadAndRendering;
+    begin
+      var lProcess := StartTestSite;
+      try
+        Assert.IsTrue(GetString("/Lifecycle.aspx").Contains("lifecycle=override-before,event-init,override-after,load,render"));
+      finally
+        StopTestSite(lProcess);
+      end;
+    end;
+
+    method PageItemsSharesRequestScopedContextItems;
+    begin
+      var lProcess := StartTestSite;
+      try
+        var lPage := GetString("/?q=page-items");
+        Assert.IsTrue(lPage.Contains("page-items-context=page-to-context"));
+        Assert.IsTrue(lPage.Contains("context-items-page=context-to-page"));
       finally
         StopTestSite(lProcess);
       end;
