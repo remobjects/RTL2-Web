@@ -80,6 +80,7 @@
     <Compile Include="EspCookies.pas" />
     <Compile Include="EspFiles.pas" />
     <Compile Include="Exceptions.pas" />
+    <Compile Include="WebCompilationDiagnostics.pas" />
     <Compile Include="EspSessions.pas" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\RemObjects Software\Elements\RemObjects.Elements.targets" />
