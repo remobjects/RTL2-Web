@@ -1,0 +1,2 @@
+<%@ Master Language="Oxygene" %>
+<html><body>master=v1<asp:ContentPlaceHolder ID="Content" runat="server" /></body></html>
