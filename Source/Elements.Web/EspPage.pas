@@ -209,21 +209,39 @@ type
   public
     constructor(aRequest: WebRequest; aResponse: WebResponse);
     begin
+      constructor(aRequest, aResponse, nil);
+    end;
+
+    constructor(aRequest: WebRequest; aResponse: WebResponse; aFactory: nullable WebPageFactory);
+    begin
       Request := aRequest;
+      aRequest.Context := self;
       Response := aResponse;
-      Session := SessionManager.FindOrCreateSession(self);
+      PageFactory := aFactory;
+      Lifetime := coalesce(aFactory:Lifetime, WebApplicationLifetime.Default);
     end;
 
     property Page: Page read Request.Page;
     property Request: WebRequest; readonly;
     property Response: WebResponse; readonly;
-    property Session: WebSessionState;
+    property Session: WebSessionState read GetSession write fSession;
+    property PageFactory: nullable WebPageFactory; readonly;
+    property Lifetime: not nullable WebApplicationLifetime; readonly;
     property Items: WebContextItems := new WebContextItems; readonly; lazy;
     property Server: WebServerForContext;
 
     class property Current: nullable WebContext read GetCurrent write SetCurrent;
 
   private
+
+    fSession: nullable WebSessionState;
+
+    method GetSession: WebSessionState;
+    begin
+      if not assigned(fSession) then
+        fSession := Lifetime.Sessions.FindOrCreateSession(self);
+      result := fSession;
+    end;
 
     {$IF ECHOES}
     [System.ThreadStatic]
@@ -257,7 +275,7 @@ type
       using lStream := OpenFile(aVirtualPath) do begin
         if not assigned(lStream) then
           exit;
-        if lStream.Length > Int32.MaxValue then
+        if lStream.Length > Consts.MaxInt32 then
           raise new IOException($"Web resource '{aVirtualPath}' is too large to read as text.");
 
         var lBytes := new Byte[Integer(lStream.Length)];
@@ -303,7 +321,36 @@ type
     fBuildTemplateMethod: BuildTemplateMethod;
   end;
 
+  WebApplicationLifetime = public class
+  public
+
+    class property Default: not nullable WebApplicationLifetime := new WebApplicationLifetime; readonly;
+
+  assembly
+
+    property Sessions := new SessionManager; readonly;
+    property Values := new WebApplicationValues; readonly;
+
+  end;
+
   Application = public static class
+  public
+
+    property Values[aName: String]: nullable Object read CurrentValues[aName] write CurrentValues[aName]; default;
+    property Keys: sequence of String read CurrentValues.Keys;
+
+    method RemoveAll;
+    begin
+      CurrentValues.RemoveAll;
+    end;
+
+  private
+
+    class property CurrentValues: WebApplicationValues read coalesce(WebContext.Current:Lifetime, WebApplicationLifetime.Default).Values;
+
+  end;
+
+  WebApplicationValues = assembly class
   public
 
     property Values[aName: String]: nullable Object read locking fMonitor do fValues[aName] write SetValue; default;
@@ -317,10 +364,10 @@ type
 
   private
 
-    class var fValues := new Dictionary<String,Object>; readonly;
-    class var fMonitor := new Monitor; readonly;
+    var fValues := new Dictionary<String,Object>; readonly;
+    var fMonitor := new Monitor; readonly;
 
-    class method SetValue(aName: String; aValue: nullable Object);
+    method SetValue(aName: String; aValue: nullable Object);
     begin
       locking fMonitor do
         fValues[aName] := aValue;

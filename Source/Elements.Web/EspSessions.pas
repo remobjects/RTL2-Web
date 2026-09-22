@@ -17,7 +17,7 @@ type
     method Abandon;
     begin
       Clear;
-      SessionManager.AbandonSession(self);
+      Store:AbandonSession(self);
     end;
 
     method Clear;
@@ -47,6 +47,8 @@ type
 
   assembly
 
+    property Store: SessionManager;
+
     constructor(aSessionID: String);
     begin
       SessionID := aSessionID;
@@ -75,13 +77,13 @@ type
 
   end;
 
-  SessionManager = static class
+  SessionManager = class
   assembly
 
-    class var fActiveSessions := new Dictionary<String,WebSessionState>; readonly;
-    class var fMonitor := new Monitor;
+    var fActiveSessions := new Dictionary<String,WebSessionState>; readonly;
+    var fMonitor := new Monitor;
 
-    class method FindOrCreateSession(aContext: not nullable WebContext): not nullable WebSessionState;
+    method FindOrCreateSession(aContext: not nullable WebContext): not nullable WebSessionState;
     begin
       var lSessionCookie := aContext.Request.Cookies[SESSION_ID_COOKIE_NAME];
       var lSessionID := coalesce(lSessionCookie:Values["ID"], lSessionCookie:Values[""]);
@@ -106,6 +108,7 @@ type
         aContext.Response.Cookies[SESSION_ID_COOKIE_NAME][""] := lSessionID;
         aContext.Response.Cookies[SESSION_ID_COOKIE_NAME].HttpOnly := true;
         result := new WebSessionState(lSessionID);
+        result.Store := self;
         result.IsNewSession := true;
         locking fMonitor do
           fActiveSessions[lSessionID] := result;
@@ -113,14 +116,14 @@ type
       end;
     end;
 
-    class method AbandonSession(aSession: nullable WebSessionState);
+    method AbandonSession(aSession: nullable WebSessionState);
     begin
       if assigned(aSession) and assigned(aSession.SessionID) then
         locking fMonitor do
           fActiveSessions[aSession.SessionID] := nil;
     end;
 
-    class method ExpireSessions;
+    method ExpireSessions;
     begin
       for each k in fActiveSessions.Keys.UniqueCopy do
         if fActiveSessions[k].IsExpired then

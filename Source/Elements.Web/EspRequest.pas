@@ -66,6 +66,7 @@ type
 
     property HttpServerRequest: HttpServerRequest; readonly;
     property Page: Page read assembly write;
+    property Context: nullable WebContext read assembly write;
 
     property HttpMethodMode: HttpRequestMode read HttpServerRequest.Header.Mode;
 
@@ -80,12 +81,12 @@ type
     //method SaveAs(filename: String; includeHeaders: Boolean); public;
     method MapPath(aVirtualPath: nullable String; aBaseVirtualDir: nullable String; aAllowCrossAppMapping: Boolean): nullable String; public;
     begin
-      result := Page:Context:Server:MapPath(aVirtualPath, aBaseVirtualDir, aAllowCrossAppMapping);
+      result := Context:Server:MapPath(aVirtualPath, aBaseVirtualDir, aAllowCrossAppMapping);
     end;
 
     method MapPath(aVirtualPath: nullable String): nullable String; public;
     begin
-      result := Page:Context:Server:MapPath(aVirtualPath);
+      result := Context:Server:MapPath(aVirtualPath);
     end;
 
     //method InsertEntityBody; public;
@@ -130,8 +131,8 @@ type
     property AppRelativeCurrentExecutionFilePath: String read GetAppRelativeCurrentExecutionFilePath; readonly; public;
     property PathInfo: String read GetPathInfo; readonly; public;
     property PhysicalPath: nullable String read GetPhysicalPath; readonly; public;
-    property ApplicationPath: String read Page:Context:Server:ApplicationPath; readonly; public;
-    property PhysicalApplicationPath: nullable String read Page:Context:Server:PhysicalApplicationPath; public;
+    property ApplicationPath: String read Context:Server:ApplicationPath; readonly; public;
+    property PhysicalApplicationPath: nullable String read Context:Server:PhysicalApplicationPath; public;
     property UserAgent: nullable String read fServerVariables["HTTP_USER_AGENT"];
     property UserLanguages: array of String read SplitHeaderValues(Headers["Accept-Language"]);
     property Browser: WebBrowserCapabilities; public;
