@@ -38,6 +38,7 @@ type
   System.Web.UI.WebControls.WebParts.Dummy = public Int32;
   System.Web.UI.HtmlControls.Dummy = public Int32;
 
+  {$IF NOT COOPER}
   System.Web.UI.PersistChildrenAttribute = public class(Attribute)
   public
     constructor(aPersistChildren: Boolean); empty;
@@ -73,5 +74,6 @@ type
   System.Web.Services.WebMethodAttribute = public class(Attribute)
   public
   end;
+  {$ENDIF}
 
 end.

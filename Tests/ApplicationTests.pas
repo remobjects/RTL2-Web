@@ -8,6 +8,36 @@ type
   ApplicationTests = public class(Test)
   public
 
+    method UnpublishedWebsiteUsesTheErrorPageFrame;
+    begin
+      // Use a disposable loopback port, never the developer's running website.
+      var lPortReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lPortReservation.Start;
+      var lPort := (lPortReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lPortReservation.Stop;
+      var lServer := new WebServer(RequireUpdateTrigger := true, AuthorizationToken := "test-token");
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Http.HttpClient do begin
+          using lResponse := lClient.GetAsync($"http://127.0.0.1:{lPort}/").GetAwaiter.GetResult do begin
+            Assert.AreEqual(Integer(lResponse.StatusCode), 503);
+            Assert.AreEqual(lResponse.Content.Headers.ContentType.MediaType, "text/html");
+            Assert.IsTrue(lResponse.Headers.CacheControl.NoStore);
+            var lHtml := lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+            Assert.IsTrue(lHtml.Contains('<main class="card">'));
+            Assert.IsTrue(lHtml.Contains('name="viewport"'));
+            Assert.IsTrue(lHtml.Contains("Elements-1024.png"));
+            Assert.IsTrue(lHtml.Contains("Website not published yet"));
+            Assert.IsTrue(lHtml.Contains("waiting for its first publication"));
+            Assert.IsFalse(lHtml.Contains("test-token"));
+            Assert.IsFalse(lHtml.Contains("/__esp/update"));
+          end;
+        end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
     method CompilerDiagnosticsAreNotExceptionStacks;
     begin
       var lFailure := new WebCompilationException("Compilation failed.");
@@ -114,6 +144,29 @@ type
       Assert.AreEqual(lNotifications, 1);
     end;
 
+    method PublicationRootsShareLifetimeButRetireIndependently;
+    begin
+      var lInner := new WebCompositePageFactory(new WebApplicationLifetime);
+      var lRetired := 0;
+      lInner.Retired += (s, e) -> inc(lRetired);
+      var lOld := new WebPublicationPageFactory(lInner, "/accepted/one", "/accepted/one/Bin", "one");
+      var lNew := new WebPublicationPageFactory(lInner, "/accepted/two", "/accepted/two/Bin", "two");
+      Assert.IsTrue(lOld.Lifetime = lNew.Lifetime);
+      Assert.AreEqual(lOld.PhysicalRootFolder, "/accepted/one");
+      Assert.AreEqual(lNew.PublicationRevision, "two");
+      lOld.Acquire;
+      lOld.Retire;
+      lInner.Retire;
+      Assert.AreEqual(lRetired, 0);
+      // An existing old request may still open a private/static response stream.
+      lOld.Acquire;
+      lOld.Release;
+      lOld.Release;
+      Assert.AreEqual(lRetired, 0);
+      lNew.Retire;
+      Assert.AreEqual(lRetired, 1);
+    end;
+
     method HostStatusIsExplicitlyGatedAndEscaped;
     begin
       var lStatus := new WebHostStatus(Summary := "Ready <test>", Generation := 3, ActiveGeneration := 2, RetainedGenerations := "1, 2");
@@ -139,11 +192,11 @@ type
         File.WriteText(lFile, "sample");
         var lServer := new WebServer(PhysicalRootFolder := lRoot);
         var lResolve := typeOf(WebServer).GetMethod("ResolveStaticFile", System.Reflection.BindingFlags.Instance or System.Reflection.BindingFlags.NonPublic);
-        var lResolved := lResolve.Invoke(lServer, ["/IMAGES/logos/SAMPLE.TXT"]) as String;
+        var lResolved := lResolve.Invoke(lServer, ["/IMAGES/logos/SAMPLE.TXT", lRoot]) as String;
         Assert.AreEqual(File.ReadText(lResolved), "sample");
-        Assert.IsNil(lResolve.Invoke(lServer, ["/images/logos/missing.txt"]));
-        Assert.IsNil(lResolve.Invoke(lServer, ["/missing/logos/sample.txt"]));
-        Assert.IsNil(lResolve.Invoke(lServer, ["/images/%2e%2e/sample.txt"]));
+        Assert.IsNil(lResolve.Invoke(lServer, ["/images/logos/missing.txt", lRoot]));
+        Assert.IsNil(lResolve.Invoke(lServer, ["/missing/logos/sample.txt", lRoot]));
+        Assert.IsNil(lResolve.Invoke(lServer, ["/images/%2e%2e/sample.txt", lRoot]));
       finally
         System.IO.Directory.Delete(lRoot, true);
       end;
