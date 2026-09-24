@@ -120,7 +120,7 @@ type
     property ContentType: nullable String read Headers["Content-Type"];
     property ContentLength: Integer read if HttpServerRequest.HasContentLength then HttpServerRequest.ContentLength else 0;
     //property ContentEncoding: System.Text.Encoding; public;
-    property AcceptTypes: array of String read SplitHeaderValues(Headers["Accept"]);
+    property AcceptTypes: ImmutableList<String> read SplitHeaderValues(Headers["Accept"]);
     //property IsAuthenticated: Boolean; readonly; public;
     property IsSecureConnection: Boolean read fServerVariables["HTTPS"] = "on";
     property Path: String read Url.Path;
@@ -134,7 +134,7 @@ type
     property ApplicationPath: String read Context:Server:ApplicationPath; readonly; public;
     property PhysicalApplicationPath: nullable String read Context:Server:PhysicalApplicationPath; public;
     property UserAgent: nullable String read fServerVariables["HTTP_USER_AGENT"];
-    property UserLanguages: array of String read SplitHeaderValues(Headers["Accept-Language"]);
+    property UserLanguages: ImmutableList<String> read SplitHeaderValues(Headers["Accept-Language"]);
     property Browser: WebBrowserCapabilities; public;
     property UserHostName: nullable String read UserHostAddress; public;
     property UserHostAddress: nullable String read coalesce(fServerVariables["REMOTE_ADDR"], fServerVariables["HTTP_X_FORWARDED_FOR"]); public;
@@ -229,12 +229,12 @@ type
         aParams.Add(lName, aValues[lName]);
     end;
 
-    method SplitHeaderValues(aValue: nullable String): array of String;
+    method SplitHeaderValues(aValue: nullable String): not nullable ImmutableList<String>;
     begin
       if length(aValue) = 0 then
-        exit [];
+        exit new ImmutableList<String>;
 
-      result := aValue.Split(",").Select(v -> v.Trim).Where(v -> length(v) > 0).ToArray;
+      result := aValue.Split(",").Select(v -> v.Trim).Where(v -> length(v) > 0).ToList as not nullable;
     end;
 
     method GetAppRelativeCurrentExecutionFilePath: String;
@@ -278,29 +278,7 @@ type
 
     method GetPageStringProperty(aName: not nullable String): nullable String;
     begin
-      if not assigned(Page) then
-        exit;
-
-      {$IF ECHOES}
-      var lFlags := System.Reflection.BindingFlags.Instance or
-                    System.Reflection.BindingFlags.Public or
-                    System.Reflection.BindingFlags.NonPublic;
-      for each lProperty in Page.GetType.GetProperties(lFlags) do begin
-        if lProperty.Name = aName then begin
-          with matching lValue := String(lProperty.GetValue(Page, nil)) do
-            if length(lValue) > 0 then
-              exit lValue;
-        end;
-      end;
-      {$ELSE}
-      for each lProperty in typeOf(Page).Properties do begin
-        if lProperty.Name = aName then begin
-          with matching lValue := String(lProperty.GetValue(Page, [])) do
-            if length(lValue) > 0 then
-              exit lValue;
-        end;
-      end;
-      {$ENDIF}
+      result := WebPageReflection.GetStringProperty(Page, aName);
     end;
 
     method IsMultipartForm: Boolean;

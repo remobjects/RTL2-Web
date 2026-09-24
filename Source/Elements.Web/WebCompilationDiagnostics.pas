@@ -1,4 +1,4 @@
-namespace RemObjects.Elements.Web;
+﻿namespace RemObjects.Elements.Web;
 
 type
   WebHostUnitStatus = public class
@@ -22,7 +22,7 @@ type
     property RetainedGenerations: nullable String;
     property Error: nullable String;
     property Units := new List<WebHostUnitStatus>; readonly;
-    property Failure: nullable System.Exception;
+    property Failure: nullable Exception;
 
     method AddUnit(aName: nullable String; aState: nullable String; aArtifact: nullable String; aError: nullable String);
     begin
@@ -45,7 +45,7 @@ type
 
   end;
 
-  WebCompilationException = public class(System.Exception)
+  WebCompilationException = public class(Exception)
   public
 
     constructor(aMessage: not nullable String);

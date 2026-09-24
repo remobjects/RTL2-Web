@@ -150,6 +150,7 @@ type
       try
         var lPage := GetString("/?q=hello+world");
         Assert.IsTrue(lPage.Contains("master-start"));
+        Assert.IsTrue(lPage.Contains("<title>Default | Master</title>"));
         Assert.IsTrue(lPage.Contains("query=hello world"));
         Assert.IsTrue(lPage.Contains("params-query=hello world"));
         Assert.IsTrue(lPage.Contains("params-server=127.0.0.1"));

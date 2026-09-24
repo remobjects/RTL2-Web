@@ -1,6 +1,16 @@
 ﻿<%@ Master Language="Oxygene" AutoEventWireup="true" Title="Master" %>
 
+<script runat="server">
+method Page_Load(aSender: Object; aEventArgs: EventArgs);
+begin
+  Head.Title := Head.Title+" | Master";
+end;
+</script>
+
 <html>
+  <head runat="server" id="head">
+    <meta charset="utf-8" />
+  </head>
   <body>
     master-start
     <asp:ContentPlaceHolder ID="Content" runat="server" />

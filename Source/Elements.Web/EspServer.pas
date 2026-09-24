@@ -355,7 +355,7 @@ type
       result := true;
     end;
 
-    method RenderException(aException: System.Exception): String;
+    method RenderException(aException: Exception): String;
     begin
       var lCompilation := FindCompilationFailure(aException);
       if assigned(lCompilation) then
@@ -370,7 +370,7 @@ type
           <section class="exception">
             <div class="exception-label">{{lLabel}}</div>
             <h2>{{HtmlLandingPage.EscapeHtml(lException.Message)}}</h2>
-            <div class="exception-type"><code>{{HtmlLandingPage.EscapeHtml(lException.GetType.Name)}}</code></div>
+            <div class="exception-type"><code>{{HtmlLandingPage.EscapeHtml(typeOf(lException).Name)}}</code></div>
           </section>
           """);
 
@@ -433,9 +433,9 @@ type
     property ShowCompilerErrorSource: Boolean;
     property HostStatus: nullable WebHostStatus read locking fDiagnosticMonitor do fHostStatus write SetHostStatus;
     property HostStarting: Boolean;
-    property HostFailure: nullable System.Exception read locking fDiagnosticMonitor do fHostFailure write SetHostFailure;
+    property HostFailure: nullable Exception read locking fDiagnosticMonitor do fHostFailure write SetHostFailure;
 
-    method SetHostFailure(aValue: nullable System.Exception); private;
+    method SetHostFailure(aValue: nullable Exception); private;
     begin
       locking fDiagnosticMonitor do
         fHostFailure := aValue;
@@ -538,7 +538,7 @@ type
     fDiagnosticSources := new Dictionary<String,WebCompilerDiagnostic>;
     fDiagnosticSourceOrder := new Queue<String>;
     fHostStatus: nullable WebHostStatus;
-    fHostFailure: nullable System.Exception;
+    fHostFailure: nullable Exception;
     fRecentErrors := new Queue<String>;
 
     method SetHostStatus(aValue: nullable WebHostStatus);
@@ -563,7 +563,7 @@ type
       result := "/__esp/source/"+lToken;
     end;
 
-    method FindCompilationFailure(aException: nullable System.Exception): nullable WebCompilationException;
+    method FindCompilationFailure(aException: nullable Exception): nullable WebCompilationException;
     begin
       while assigned(aException) do begin
         if aException is WebCompilationException then
@@ -747,7 +747,7 @@ type
     end;
     {$ENDIF}
 
-    method RenderErrorPage(aCode: Integer; aTitle: not nullable String; aPath: nullable String; aMessage: nullable String; aException: nullable System.Exception := nil): not nullable String;
+    method RenderErrorPage(aCode: Integer; aTitle: not nullable String; aPath: nullable String; aMessage: nullable String; aException: nullable Exception := nil): not nullable String;
     begin
       if assigned(FindCompilationFailure(aException)) then
         aTitle := "Compilation Error";
@@ -915,14 +915,14 @@ type
         var lPath := Path.Combine(lFolder, lPart);
         var lIsFile := i = lParts.Count-1;
         if (lIsFile and File.Exists(lPath)) or (not lIsFile and Folder.Exists(lPath)) then begin
-          lFolder := lPath;
+          lFolder := lPath as not nullable;
           continue;
         end;
         var lCandidates := if lIsFile then Folder.GetFiles(lFolder) else Folder.GetSubfolders(lFolder);
         var lMatches := lCandidates.Where(p -> caseInsensitive(p.LastPathComponent) = lPart).ToList;
         if lMatches.Count ≠ 1 then
           exit;
-        lFolder := lMatches.First;
+        lFolder := lMatches.First as not nullable;
       end;
       if lParts.Count > 0 then
         result := lFolder;
@@ -935,8 +935,9 @@ type
 
       var lFileName := Path.GetFullPath(aFileName);
       var lFolder := Path.GetFullPath(aFolder as not nullable).TrimEnd(Path.DirectorySeparatorChar);
+      var lFolderPrefix: String := lFolder+Path.DirectorySeparatorChar.ToString;
       result := (lFileName.ToLowerInvariant = lFolder.ToLowerInvariant) or
-                lFileName.ToLowerInvariant.StartsWith((lFolder+Path.DirectorySeparatorChar).ToLowerInvariant);
+                lFileName.ToLowerInvariant.StartsWith(lFolderPrefix.ToLowerInvariant);
     end;
 
     class method ContentTypeForFileName(aFileName: not nullable String): not nullable String;
@@ -1097,29 +1098,7 @@ type
 
     method GetPageStringProperty(aName: not nullable String): nullable String;
     begin
-      if not assigned(Context:Page) then
-        exit;
-
-      {$IF ECHOES}
-      var lFlags := System.Reflection.BindingFlags.Instance or
-                    System.Reflection.BindingFlags.Public or
-                    System.Reflection.BindingFlags.NonPublic;
-      for each lProperty in Context.Page.GetType.GetProperties(lFlags) do begin
-        if lProperty.Name = aName then begin
-          with matching lValue := String(lProperty.GetValue(Context.Page, nil)) do
-            if length(lValue) > 0 then
-              exit lValue;
-        end;
-      end;
-      {$ELSE}
-      for each lProperty in typeOf(Context.Page).Properties do begin
-        if lProperty.Name = aName then begin
-          with matching lValue := String(lProperty.GetValue(Context.Page, [])) do
-            if length(lValue) > 0 then
-              exit lValue;
-        end;
-      end;
-      {$ENDIF}
+      result := WebPageReflection.GetStringProperty(Context:Page, aName);
     end;
 
   end;
@@ -1267,7 +1246,7 @@ type
       AddFailureException(aPath, new Exception(aMessage));
     end;
 
-    method AddFailureException(aPath: not nullable String; aException: not nullable System.Exception);
+    method AddFailureException(aPath: not nullable String; aException: not nullable Exception);
     begin
       if fPublished then
         raise new InvalidOperationException("A published ESP snapshot is immutable.");
@@ -1371,7 +1350,7 @@ type
 
     fLifetime: not nullable WebApplicationLifetime;
     fFactories := new List<WebPageFactory>;
-    fFailures := new Dictionary<String,System.Exception>;
+    fFailures := new Dictionary<String,Exception>;
     fMonitor := new Monitor;
     fRequests: Integer;
     fRetired: Boolean;

@@ -75,8 +75,16 @@ type
     begin
       {$IF ECHOES}
       result := &Delegate.CreateDelegate(EventHandler, self, aMethod) as EventHandler;
+      {$ELSEIF COOPER}
+      var lJavaMethod := java.lang.reflect.Method(aMethod);
+      lJavaMethod.setAccessible(true);
+      result := (aSender, aEventArgs) -> begin
+        lJavaMethod.invoke(aInstance, [aSender, aEventArgs]);
+      end;
       {$ELSEIF ISLAND}
       result := Utilities.NewDelegate(System.Type(typeOf(aInstance)).RTTI, self, System.MethodInfo(aMethod).Pointer) as RemObjects.InternetPack.EventHandler;
+      {$ELSE}
+      {$ERROR Platform not supported}
       {$ENDIF}
     end;
 
@@ -104,6 +112,15 @@ type
             exit &Method(lMethod);
         end;
         lType := lType.BaseType;
+      end;
+      {$ELSEIF COOPER}
+      var lType := java.lang.Class(typeOf(self));
+      while assigned(lType) do begin
+        for each lMethod in lType.getDeclaredMethods() do begin
+          if caseInsensitive(String(lMethod.getName())) = caseInsensitive(aName) then
+            exit &Method(lMethod);
+        end;
+        lType := lType.getSuperclass();
       end;
       {$ELSEIF ISLAND}
       var lType := typeOf(self);
@@ -149,13 +166,71 @@ type
 
   Page = public class(UserControl)
   public
-    property Header: WebPageHeader :=  new WebPageHeader(); readonly; lazy;
+    property Header: WebPageHeader read begin
+      if assigned(Context:Page) and (Context.Page <> self) then
+        exit Context.Page.Header;
+
+      if not assigned(fHeader) then
+        fHeader := new WebPageHeader;
+
+      result := fHeader;
+    end;
 
     property Title: String read Header:Title write Header:Title;
     property Master: MasterPage;
     property Items: WebContextItems read Context.Items;
 
     property Head: WebPageHeader read Header; {$HINT really?}
+
+  private
+    fHeader: WebPageHeader;
+
+  end;
+
+  WebPageReflection = assembly static class
+  public
+
+    class method GetStringProperty(aPage: nullable Page; aName: not nullable String): nullable String;
+    begin
+      if not assigned(aPage) then
+        exit;
+
+      {$IF ECHOES}
+      var lFlags := System.Reflection.BindingFlags.Instance or
+                    System.Reflection.BindingFlags.Public or
+                    System.Reflection.BindingFlags.NonPublic;
+      for each lProperty in aPage.GetType.GetProperties(lFlags) do begin
+        if lProperty.Name = aName then begin
+          with matching lValue := String(lProperty.GetValue(aPage, nil)) do
+            if length(lValue) > 0 then
+              exit lValue;
+        end;
+      end;
+      {$ELSEIF COOPER}
+      var lGetterName := "get_"+aName;
+      var lJavaGetterName := "get"+aName;
+      for each lMethod in typeOf(aPage).Methods do begin
+        if (lMethod.Name = lGetterName) or (lMethod.Name = lJavaGetterName) then begin
+          var lJavaMethod := java.lang.reflect.Method(lMethod);
+          lJavaMethod.setAccessible(true);
+          with matching lValue := String(lJavaMethod.invoke(aPage, [])) do
+            if length(lValue) > 0 then
+              exit lValue;
+        end;
+      end;
+      {$ELSEIF ISLAND}
+      for each lProperty in typeOf(aPage).Properties do begin
+        if lProperty.Name = aName then begin
+          with matching lValue := String(lProperty.GetValue(aPage, [])) do
+            if length(lValue) > 0 then
+              exit lValue;
+        end;
+      end;
+      {$ELSE}
+      {$ERROR Platform not supported}
+      {$ENDIF}
+    end;
+
   end;
 
   Master = public class(Page)  // ??
