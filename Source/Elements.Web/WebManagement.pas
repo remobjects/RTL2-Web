@@ -40,7 +40,7 @@ type
       var lPath := aEvent.Request.Path;
       // Public listener liveness only: no publication state, diagnostics or secrets.
       // Deployment proxies must be able to admit a host before its first publication.
-      if RequireUpdateTrigger and (lPath = "/__esp/health") then begin
+      if lPath = "/__esp/health" then begin
         aEvent.Response.Header.SetHeaderValue("Cache-Control", "no-store");
         aEvent.Response.Header.SetHeaderValue("Content-Type", "text/plain; charset=utf-8");
         var lMethod := String(aEvent.Request.Header.RequestType).ToLowerInvariant;
@@ -55,7 +55,8 @@ type
         end;
         exit true;
       end;
-      if not RequireUpdateTrigger or not (lPath in ["/__esp/update", "/__esp/status"]) then
+      if (not RequireUpdateTrigger and (length(AuthorizationToken) = 0)) or
+         not (lPath in ["/__esp/update", "/__esp/status"]) then
         exit false;
       result := true;
       aEvent.Response.Header.SetHeaderValue("Cache-Control", "no-store");
