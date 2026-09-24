@@ -29,9 +29,6 @@
     <Mode>Echoes</Mode>
     <TargetFramework>.NETStandard2.0</TargetFramework>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Target)' == 'Cooper' ">
-    <Mode>Cooper</Mode>
-  </PropertyGroup>
   <PropertyGroup Condition=" '$(Target)' == 'Island.Darwin.macOS' ">
     <Mode>Island</Mode>
     <SubMode>Darwin</SubMode>
@@ -86,18 +83,6 @@
     <Compile Include="WebCompilationDiagnostics.pas" />
     <Compile Include="WebManagement.pas" />
     <Compile Include="EspSessions.pas" />
-  </ItemGroup>
-  <ItemGroup />
-  <ItemGroup Condition="'$(Target)' == 'Cooper'">
-    <Reference Include="remobjects.internetpack">
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="elements">
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="cooper">
-      <Private>True</Private>
-    </Reference>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath)\RemObjects Software\Elements\RemObjects.Elements.targets" />
 </Project>
