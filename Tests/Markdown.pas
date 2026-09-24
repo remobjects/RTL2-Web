@@ -27,6 +27,32 @@ type
       Check.IsTrue(Markdown.ToHtml("<span>safe caller choice</span>", lOptions).Contains("<span>safe caller choice</span>"));
     end;
 
+    method PreservesValidHtmlCommentsWhenEnabled;
+    begin
+      var lOptions := MarkdownOptions.CommonMark;
+      lOptions.AllowRawHtml := true;
+
+      var lBlockSource := "<!-- hidden" + #10 + #10 + "<div>legacy content</div>" + #10 + "-->" + #10 + "## Visible";
+      var lBlockHtml := Markdown.ToHtml(lBlockSource, lOptions);
+      Check.IsTrue(lBlockHtml.Contains("<!-- hidden" + #10 + #10 + "<div>legacy content</div>" + #10 + "-->"));
+      Check.IsTrue(lBlockHtml.Contains("<h2>Visible</h2>"));
+      Check.IsFalse(lBlockHtml.Contains("--&gt;"));
+
+      var lInlineHtml := Markdown.ToHtml("Before <!--<span>hidden</span>--> after", lOptions);
+      Check.IsTrue(lInlineHtml.Contains("Before <!--<span>hidden</span>--> after"));
+      Check.IsFalse(lInlineHtml.Contains("--&gt;"));
+    end;
+
+    method AtxHeadingInterruptsParagraphAfterInlineHtml;
+    begin
+      var lOptions := MarkdownOptions.CommonMark;
+      lOptions.AllowRawHtml := true;
+      var lHtml := Markdown.ToHtml("<img src=""image.png"" />" + #10 + "## Heading" + #10 + "Body", lOptions);
+      Check.IsTrue(lHtml.Contains("<p><img src=""image.png"" /></p>"));
+      Check.IsTrue(lHtml.Contains("<h2>Heading</h2>"));
+      Check.IsTrue(lHtml.Contains("<p>Body</p>"));
+    end;
+
     method PreservesUnicodeInlineText;
     begin
       var lText := "sealed — café Ω 🚀";

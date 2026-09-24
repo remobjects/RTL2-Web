@@ -273,6 +273,14 @@ type
         if (aText[i] = '\\') and (i + 1 < aText.Length) then begin
           AppendEscapedCharacter(lOutput, aText[i + 1]); inc(i, 2); continue;
         end;
+        if aOptions.AllowRawHtml and (i + 3 < aText.Length) and (aText.Substring(i, 4) = "<!--") then begin
+          var lEnd := aText.IndexOf("-->", i + 4);
+          if lEnd >= 0 then begin
+            lOutput.Append(aText.Substring(i, lEnd - i + 3));
+            i := lEnd + 3;
+            continue;
+          end;
+        end;
         if aOptions.AllowRawHtml and (aText[i] = '<') then begin
           var lEnd := aText.IndexOf('>', i + 1);
           if lEnd >= 0 then begin lOutput.Append(aText.Substring(i, lEnd - i + 1)); i := lEnd + 1; continue; end;
@@ -332,6 +340,18 @@ type
       while i < lLines.Count do begin
         if IsBlank(lLines[i]) then begin
           inc(i);
+          continue;
+        end;
+
+        if aOptions.AllowRawHtml and lLines[i]:TrimStart.StartsWith("<!--") then begin
+          while i < lLines.Count do begin
+            lOutput.Append(lLines[i]);
+            lOutput.Append(#10);
+            var lFinished := lLines[i].Contains("-->");
+            inc(i);
+            if lFinished then
+              break;
+          end;
           continue;
         end;
 
@@ -416,7 +436,17 @@ type
         end;
         var lParagraph := new StringBuilder;
         while (i < lLines.Count) and not IsBlank(lLines[i]) do begin
-          if lParagraph.Length > 0 then lParagraph.Append(#10); lParagraph.Append(lLines[i]); inc(i);
+          if lParagraph.Length > 0 then begin
+            var lInterruptHeadingText: String;
+            if HeadingLevel(lLines[i], out lInterruptHeadingText) > 0 then
+              break;
+            if aOptions.AllowRawHtml and lLines[i]:TrimStart.StartsWith("<!--") then
+              break;
+          end;
+          if lParagraph.Length > 0 then
+            lParagraph.Append(#10);
+          lParagraph.Append(lLines[i]);
+          inc(i);
         end;
         lOutput.Append("<p>" + &Inline(lParagraph.ToString, aOptions).Replace(String(#10), "<br />" + #10) + "</p>" + #10);
       end;
