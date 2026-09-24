@@ -146,7 +146,7 @@ type
       if assigned(aCookie.Expires) then begin
         lString.Append("; ");
         lString.Append("expires=");
-        lString.Append(aCookie.Expires.ToString("ddd, dd-MMM-yyyy HH:mm:ss UTC"));
+        lString.Append(aCookie.Expires.ToString("ddd, dd MMM yyyy HH:mm:ss", "en-US", TimeZone.Utc)+" GMT");
       end;
 
       if aCookie.Secure then
