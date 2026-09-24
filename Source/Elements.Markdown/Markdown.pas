@@ -246,15 +246,23 @@ type
       var lBuilder := new StringBuilder;
       var lDash := false;
       for each lChar in aText:ToLower do begin
-        if lChar.IsLetterOrNumber then begin lBuilder.Append(lChar); lDash := false; end
-        else if not lDash then begin lBuilder.Append('-'); lDash := true; end;
+        if lChar.IsLetterOrNumber then begin
+          lBuilder.Append(lChar);
+          lDash := false;
+        end
+        else if not lDash then begin
+          lBuilder.Append('-');
+          lDash := true;
+        end;
       end;
-      var lResult: not nullable String := (lBuilder.ToString as String as not nullable):Trim('-');
-      if length(lResult) = 0 then lResult := "section";
+      var lResult := (lBuilder.ToString as String):Trim('-');
+      if length(lResult) = 0 then
+        lResult := "section";
       var lCount := coalesce(aCounts[lResult], 0);
       aCounts[lResult] := lCount + 1;
-      if lCount > 0 then lResult := lResult + "-" + lCount.ToString;
-      result := lResult;
+      if lCount > 0 then
+        lResult := lResult + "-" + lCount.ToString;
+      result := lResult as not nullable;
     end;
 
     class method &Inline(aText: not nullable String; aOptions: not nullable MarkdownOptions): not nullable String;
