@@ -27,6 +27,20 @@ type
       Check.IsTrue(Markdown.ToHtml("<span>safe caller choice</span>", lOptions).Contains("<span>safe caller choice</span>"));
     end;
 
+    method PreservesAngleBracketTextThatIsNotHtml;
+    begin
+      var lOptions := MarkdownOptions.CommonMark;
+      lOptions.AllowRawHtml := true;
+
+      var lHtml := Markdown.ToHtml("Sugar.Dictionary<T,U> and System.Collections.Generic.Dictionary<T,U>", lOptions);
+      Check.IsTrue(lHtml.Contains("Sugar.Dictionary&lt;T,U&gt;"));
+      Check.IsTrue(lHtml.Contains("System.Collections.Generic.Dictionary&lt;T,U&gt;"));
+
+      var lMixedHtml := Markdown.ToHtml("Before <span class=""value"">inside</span> and <https://example.test> after", lOptions);
+      Check.IsTrue(lMixedHtml.Contains("<span class=""value"">inside</span>"));
+      Check.IsTrue(lMixedHtml.Contains("<a href=""https://example.test"">https://example.test</a>"));
+    end;
+
     method PreservesValidHtmlCommentsWhenEnabled;
     begin
       var lOptions := MarkdownOptions.CommonMark;

@@ -109,6 +109,136 @@ type
       end;
     end;
 
+    class method IsAsciiLetter(aCharacter: Char): Boolean;
+    begin
+      result := ((aCharacter >= 'a') and (aCharacter <= 'z')) or ((aCharacter >= 'A') and (aCharacter <= 'Z'));
+    end;
+
+    class method IsAsciiDigit(aCharacter: Char): Boolean;
+    begin
+      result := (aCharacter >= '0') and (aCharacter <= '9');
+    end;
+
+    class method IsHtmlTagNameCharacter(aCharacter: Char): Boolean;
+    begin
+      result := IsAsciiLetter(aCharacter) or IsAsciiDigit(aCharacter) or (aCharacter = '-');
+    end;
+
+    class method IsHtmlAttributeNameStart(aCharacter: Char): Boolean;
+    begin
+      result := IsAsciiLetter(aCharacter) or (aCharacter = '_') or (aCharacter = ':');
+    end;
+
+    class method IsHtmlAttributeNameCharacter(aCharacter: Char): Boolean;
+    begin
+      result := IsHtmlAttributeNameStart(aCharacter) or IsAsciiDigit(aCharacter) or (aCharacter = '.') or (aCharacter = '-');
+    end;
+
+    class method RawHtmlEnd(aText: not nullable String; aStart: Integer): Integer;
+    begin
+      result := -1;
+      if (aStart < 0) or (aStart >= aText.Length) or (aText[aStart] <> '<') then
+        exit;
+
+      if (aStart + 1 < aText.Length) and (aText[aStart + 1] = '?') then begin
+        var lEnd := aText.IndexOf("?>", aStart + 2);
+        if lEnd >= 0 then
+          result := lEnd + 1;
+        exit;
+      end;
+
+      if (aStart + 8 < aText.Length) and (aText.Substring(aStart, 9) = "<![CDATA[") then begin
+        var lEnd := aText.IndexOf("]]>", aStart + 9);
+        if lEnd >= 0 then
+          result := lEnd + 2;
+        exit;
+      end;
+
+      if (aStart + 2 < aText.Length) and (aText[aStart + 1] = '!') and IsAsciiLetter(aText[aStart + 2]) then begin
+        var lEnd := aText.IndexOf('>', aStart + 3);
+        if lEnd >= 0 then
+          result := lEnd;
+        exit;
+      end;
+
+      var lIndex := aStart + 1;
+      var lClosing := false;
+      if (lIndex < aText.Length) and (aText[lIndex] = '/') then begin
+        lClosing := true;
+        inc(lIndex);
+      end;
+
+      if (lIndex >= aText.Length) or not IsAsciiLetter(aText[lIndex]) then
+        exit;
+      inc(lIndex);
+      while (lIndex < aText.Length) and IsHtmlTagNameCharacter(aText[lIndex]) do
+        inc(lIndex);
+
+      if lClosing then begin
+        while (lIndex < aText.Length) and aText[lIndex].IsWhitespace do
+          inc(lIndex);
+        if (lIndex < aText.Length) and (aText[lIndex] = '>') then
+          result := lIndex;
+        exit;
+      end;
+
+      while lIndex < aText.Length do begin
+        if aText[lIndex] = '>' then
+          exit lIndex;
+        if aText[lIndex] = '/' then begin
+          if (lIndex + 1 < aText.Length) and (aText[lIndex + 1] = '>') then
+            exit lIndex + 1;
+          exit;
+        end;
+        if not aText[lIndex].IsWhitespace then
+          exit;
+
+        while (lIndex < aText.Length) and aText[lIndex].IsWhitespace do
+          inc(lIndex);
+        if lIndex >= aText.Length then
+          exit;
+        if aText[lIndex] = '>' then
+          exit lIndex;
+        if aText[lIndex] = '/' then begin
+          if (lIndex + 1 < aText.Length) and (aText[lIndex + 1] = '>') then
+            exit lIndex + 1;
+          exit;
+        end;
+        if not IsHtmlAttributeNameStart(aText[lIndex]) then
+          exit;
+
+        inc(lIndex);
+        while (lIndex < aText.Length) and IsHtmlAttributeNameCharacter(aText[lIndex]) do
+          inc(lIndex);
+        while (lIndex < aText.Length) and aText[lIndex].IsWhitespace do
+          inc(lIndex);
+        if (lIndex < aText.Length) and (aText[lIndex] = '=') then begin
+          inc(lIndex);
+          while (lIndex < aText.Length) and aText[lIndex].IsWhitespace do
+            inc(lIndex);
+          if lIndex >= aText.Length then
+            exit;
+
+          if (aText[lIndex] = Char(34)) or (aText[lIndex] = Char(39)) then begin
+            var lQuote := aText[lIndex];
+            inc(lIndex);
+            while (lIndex < aText.Length) and (aText[lIndex] <> lQuote) do
+              inc(lIndex);
+            if lIndex >= aText.Length then
+              exit;
+            inc(lIndex);
+          end
+          else begin
+            var lValueStart := lIndex;
+            while (lIndex < aText.Length) and not aText[lIndex].IsWhitespace and not (aText[lIndex] in [Char(34), Char(39), '=', '<', '>', '`']) do
+              inc(lIndex);
+            if lIndex = lValueStart then
+              exit;
+          end;
+        end;
+      end;
+    end;
+
     class method Lines(aSource: not nullable String): not nullable List<String>;
     begin
       result := new List<String>;
@@ -282,7 +412,7 @@ type
           end;
         end;
         if aOptions.AllowRawHtml and (aText[i] = '<') then begin
-          var lEnd := aText.IndexOf('>', i + 1);
+          var lEnd := RawHtmlEnd(aText, i);
           if lEnd >= 0 then begin lOutput.Append(aText.Substring(i, lEnd - i + 1)); i := lEnd + 1; continue; end;
         end;
         if aOptions.EnableAutolinks and (aText[i] = '<') then begin
