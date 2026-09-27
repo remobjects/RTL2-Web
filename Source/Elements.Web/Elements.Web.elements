@@ -89,7 +89,7 @@
     <Compile Include="WebApplication.pas" />
     <Compile Include="EspSessions.pas" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(Target)' == 'Echoes.Standard'">
     <EmbeddedResource Include="Resources/Logo.png">
       <LogicalName>RemObjects.Elements.Web.Logo.png</LogicalName>
     </EmbeddedResource>

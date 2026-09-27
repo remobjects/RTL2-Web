@@ -812,6 +812,11 @@ type
         aTitle := "Compilation Error";
       var lDetails := if assigned(aException) then RenderException(aException) else "";
       var lMessage := if length(aMessage) > 0 then $"<p class=""message"">{HtmlLandingPage.EscapeHtml(aMessage)}</p>" else "";
+      {$IF ECHOES}
+      var lLogoUrl := "/__esp/logo.png";
+      {$ELSE}
+      var lLogoUrl := "https://www.remobjects.com/images/product-logos/Elements-1024.png";
+      {$ENDIF}
       var lBody := ##"""
         <style>
           .product-logo {
@@ -911,7 +916,7 @@ type
           }
         </style>
         <a href="https://www.remobjects.com/elements" target="_blank" rel="noreferrer">
-          <img class="product-logo" src="/__esp/logo.png" width="88" height="88" alt="Elements" />
+          <img class="product-logo" src="{{lLogoUrl}}" width="88" height="88" alt="Elements" />
         </a>
         <div class="status">HTTP {{aCode}}</div>
         <h1>{{HtmlLandingPage.EscapeHtml(aTitle)}}</h1>

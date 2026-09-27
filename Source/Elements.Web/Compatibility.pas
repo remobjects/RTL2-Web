@@ -22,7 +22,9 @@ type
 
   System.Web.IHttpHandler = public IHttpHandler;
 
-  System.Web.SessionState.IRequiresSessionState = public interface
+  System.Web.SessionState.IRequiresSessionState = public IRequiresSessionState;
+
+  IRequiresSessionState = public interface
   end;
 
   {$IF NOT ECHOES}
