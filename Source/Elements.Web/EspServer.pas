@@ -269,7 +269,7 @@ type
           end;
           aFailure:CaptureException(E);
           Log($"Unhandled ESP request exception for '{aEventArgs.Request.Path}': {E}");
-          if not assigned(aErrorPath) and not DebugMode then begin
+          if not assigned(aErrorPath) then begin
             try
               if RunError(aEventArgs, 500, aFactory, aFailure) then
                 exit;
@@ -321,8 +321,6 @@ type
     method RunError(e: HttpRequestEventArgs; aCode: Integer; aFactory: nullable WebPageFactory; aFailure: nullable WebRequestError): Boolean; private;
     begin
       aFailure:CaptureStatus(aCode);
-      if (aCode = 500) and DebugMode then
-        exit false;
       var lRule := aFactory:FindErrorPage(aCode);
       if assigned(ErrorPaths[aCode]) then
         lRule := new WebErrorPage(ErrorPaths[aCode], false, false, false);

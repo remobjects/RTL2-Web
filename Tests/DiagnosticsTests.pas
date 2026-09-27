@@ -8,6 +8,44 @@ type
   DiagnosticsTests = public class(Test)
   public
 
+    method ConfiguredErrorPagesHandleEveryErrorStatusInBothDebugModes;
+    begin
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lFactory := new ErrorPageTestFactory;
+      var lServer := new WebServer(PageFactory := lFactory);
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Http.HttpClient do begin
+          lClient.BaseAddress := new System.Uri($"http://127.0.0.1:{lPort}");
+          for each lDebug in [false, true] do begin
+            lServer.DebugMode := lDebug;
+            for lCode := 400 to 599 do begin
+              using lResponse := lClient.GetAsync($"/status?code={lCode}").GetAwaiter.GetResult do begin
+                Assert.AreEqual(Integer(lResponse.StatusCode), lCode);
+                Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, $"handled:{lCode}");
+              end;
+            end;
+            for each lPath in ["/throw", "/compile", "/missing"] do
+              using lResponse := lClient.GetAsync(lPath).GetAwaiter.GetResult do begin
+                var lCode := if lPath = "/missing" then 404 else 500;
+                Assert.AreEqual(Integer(lResponse.StatusCode), lCode);
+                Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, $"handled:{lCode}");
+              end;
+          end;
+          lFactory.FailErrorPage := true;
+          using lResponse := lClient.GetAsync("/throw").GetAwaiter.GetResult do begin
+            Assert.AreEqual(Integer(lResponse.StatusCode), 500);
+            Assert.IsTrue(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult.Contains("error page failed"));
+          end;
+        end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
     method RequestHistoryCopiesCompilerDiagnostics;
     begin
       var lFailure := new WebCompilationException("Compilation failed");
@@ -122,6 +160,49 @@ type
       finally
         lServer.Stop;
         File.Delete(lSourceFile);
+      end;
+    end;
+
+  end;
+
+  ErrorPageTestFactory = class(WebPageFactory)
+  public
+
+    property FailErrorPage: Boolean;
+
+    method FindClassForPath(aPath: not nullable String): nullable Object; override;
+    begin
+      if aPath = "/compile" then
+        raise new WebCompilationException("Compilation failed");
+      if aPath in ["/status", "/throw", "/custom"] then
+        result := new ErrorPageTestHandler(FailErrorPage := FailErrorPage);
+    end;
+
+    method FindRedirectForPath(aPath: not nullable String): nullable String; override; empty;
+
+    method FindErrorPage(aCode: Integer): nullable WebErrorPage; override;
+    begin
+      if (aCode ≥ 400) and (aCode ≤ 599) then
+        result := new WebErrorPage("/custom", false, true, false);
+    end;
+
+  end;
+
+  ErrorPageTestHandler = class(IHttpHandler)
+  public
+
+    property FailErrorPage: Boolean;
+
+    method ProcessRequest(aContext: WebContext);
+    begin
+      case aContext.Request.Url.Path of
+        "/throw": raise new Exception("original error");
+        "/status": aContext.Response.StatusCode := Convert.ToInt32(aContext.Request.QueryString["code"]);
+        "/custom": begin
+          if FailErrorPage then
+            raise new Exception("error page failed");
+          aContext.Response.Write($"handled:{aContext.Response.StatusCode}");
+        end;
       end;
     end;
 
