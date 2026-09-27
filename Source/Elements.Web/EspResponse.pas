@@ -314,7 +314,7 @@ type
 
     method Clear;
     begin
-      ClearHeaders;
+      // Clear the body only; callers use ClearHeaders explicitly for headers.
       ClearContent;
     end;
 

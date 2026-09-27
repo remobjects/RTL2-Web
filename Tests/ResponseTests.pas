@@ -17,6 +17,28 @@ type
       Assert.AreEqual(lResponse.Charset, "utf-8");
     end;
 
+    method AttachmentHeadersSurviveClearAndEnd;
+    begin
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lServer := new WebServer(PageFactory := new CookieCompletionFactory);
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Http.HttpClient do
+        using lResponse := lClient.GetAsync($"http://127.0.0.1:{lPort}/download").GetAwaiter.GetResult do begin
+          Assert.AreEqual(Integer(lResponse.StatusCode), 200);
+          Assert.AreEqual(lResponse.Content.Headers.ContentType.MediaType, "text/text");
+          Assert.AreEqual(lResponse.Content.Headers.ContentDisposition.DispositionType, "attachment");
+          Assert.AreEqual(lResponse.Content.Headers.ContentDisposition.FileName, '"Your Elements Trial Extension.licenses"');
+          Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, "license data");
+        end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
     method CookiesSurviveResponseCompletion;
     begin
       // Isolated loopback server: do not use the developer's website port.
@@ -145,7 +167,7 @@ type
 
     method FindClassForPath(aPath: not nullable String): nullable Object; override;
     begin
-      if aPath in ["/normal", "/redirect", "/permanent", "/end", "/reflected", "/read"] then
+      if aPath in ["/normal", "/redirect", "/permanent", "/end", "/reflected", "/read", "/download"] then
         result := new CookieCompletionHandler;
     end;
 
@@ -159,6 +181,14 @@ type
     method ProcessRequest(Context: WebContext);
     begin
       var lMode := Context.Request.Url.Path;
+      if lMode = "/download" then begin
+        Context.Response.Write("discard me");
+        Context.Response.ContentType := "text/text";
+        Context.Response.AddHeader("Content-Disposition", 'attachment; filename="Your Elements Trial Extension.licenses"');
+        Context.Response.Clear;
+        Context.Response.BinaryWrite(System.Text.Encoding.UTF8.GetBytes("license data"));
+        Context.Response.End;
+      end;
       if lMode = "/read" then begin
         Context.Response.Write(Context.Request.Cookies["StagingAccess"].Value+"|"+Context.Session["marker"]);
         exit;
