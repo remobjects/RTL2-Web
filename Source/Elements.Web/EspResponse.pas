@@ -110,12 +110,52 @@ type
     fResponse: not nullable WebResponse;
   end;
 
+  WebResponse = public class;
+
+  WebResponseOutputStream = public class(Stream)
+  public
+    constructor(aResponse: not nullable WebResponse);
+    begin
+      fResponse := aResponse;
+    end;
+
+    method Seek(aOffset: Int64; aOrigin: SeekOrigin): Int64; override;
+    begin
+      raise new NotSupportedException("The HTTP response output stream cannot be seeked.");
+    end;
+
+    method Close; override; empty;
+
+    method Flush; override;
+    begin
+      fResponse.Flush;
+    end;
+
+    method &Read(aBuffer: array of Byte; aOffset: Int32; aCount: Int32): Int32; override;
+    begin
+      raise new NotSupportedException("The HTTP response output stream cannot be read.");
+    end;
+
+    method &Write(aBuffer: array of Byte; aOffset: Int32; aCount: Int32): Int32; override;
+    begin
+      fResponse.WriteBytes(aBuffer, aOffset, aCount);
+      result := aCount;
+    end;
+
+    property CanRead: Boolean read false; override;
+    property CanSeek: Boolean read false; override;
+    property CanWrite: Boolean read true; override;
+
+  private
+    fResponse: not nullable WebResponse;
+  end;
+
   WebResponse = public class
   public
     constructor(aResponse: HttpServerResponse);
     begin
       HttpServerResponse := aResponse;
-      HttpServerResponse.ContentStream := new MemoryStream;
+      fBufferedContent := new MemoryStream;
       Cookies := new WebCookieCollection;
       BufferOutput := true;
       ContentEncoding := Encoding;
@@ -138,10 +178,8 @@ type
 
       if assigned(aString) then begin
         var lBytes := ContentEncoding.GetBytes(aString) includeBOM(false);
-        HttpServerResponse.ContentStream.Write(lBytes, 0, length(lBytes));
+        WriteBytes(lBytes, 0, length(lBytes));
       end;
-      //HttpServerResponse.ContentStream.Flush;
-      //HttpServerResponse.ContentString := HttpServerResponse.ContentString+aString;
     end;
 
     method &Write(aChars: array of Char; aIndex: Integer; aCount: Integer);
@@ -168,7 +206,7 @@ type
         exit;
 
       var lBytes := File.ReadBytes(aFileName);
-      HttpServerResponse.ContentStream.Write(lBytes, aOffset, aSize);
+      WriteBytes(lBytes, aOffset, aSize);
     end;
 
     method WriteFile(aFileName: not nullable String; aShouldReadIntoMemory: Boolean); public;
@@ -178,7 +216,7 @@ type
 
       //if aShouldReadIntoMemory then begin
         var lBytes := File.ReadBytes(aFileName);
-        HttpServerResponse.ContentStream.Write(lBytes, 0, length(lBytes));
+        WriteBytes(lBytes, 0, length(lBytes));
       //end
       //else begin
         //using lStream := new FileStream(aFileName, FileOpenMode.ReadOnly) do
@@ -198,12 +236,14 @@ type
 
     method TransmitFile(aFileName: String); public;
     begin
+      EnsureNotStreaming("transmit a file");
       if SuppressContent then begin
-        HttpServerResponse.ContentStream := new MemoryStream;
+        fBufferedContent.Clear;
+        fTransmittedContent := nil;
         raise new CleanlyEndResponseException;
       end;
 
-      HttpServerResponse.ContentStream := new FileStream(aFileName, FileOpenMode.ReadOnly);
+      fTransmittedContent := new FileStream(aFileName, FileOpenMode.ReadOnly);
       raise new CleanlyEndResponseException;
     end;
 
@@ -232,7 +272,7 @@ type
       if SuppressContent then
         exit;
 
-      HttpServerResponse.ContentStream.Write(buffer, 0, length(buffer));
+      WriteBytes(buffer, 0, length(buffer));
     end;
 
     //method Pics(value: String); public;
@@ -259,6 +299,7 @@ type
 
     method ClearHeaders;
     begin
+      EnsureNotStreaming("clear response headers");
       HttpServerResponse.Header := new HttpHeaders;
       fCacheControl := nil;
       fCharset := nil;
@@ -266,7 +307,9 @@ type
 
     method ClearContent;
     begin
-      HttpServerResponse.ContentStream := new MemoryStream;
+      EnsureNotStreaming("clear response content");
+      fBufferedContent.Clear;
+      fTransmittedContent := nil;
     end;
 
     method Clear;
@@ -277,7 +320,19 @@ type
 
     method Flush;
     begin
+      if fCompleted then
+        exit;
 
+      if not fStreaming then begin
+        CommitCookies;
+        HttpServerResponse.BeginChunkedResponse;
+        fStreaming := true;
+        var lBytes := fBufferedContent.ToArray;
+        fBufferedContent.Clear;
+        if length(lBytes) > 0 then
+          HttpServerResponse.WriteChunk(lBytes);
+      end;
+      HttpServerResponse.FlushChunkedResponse;
     end;
     //method AppendToLog(&param: String); public;
     method Redirect(aUrl: String; aShouldEndResponse: Boolean);
@@ -364,7 +419,7 @@ type
     property Output: WebResponseTextWriter := new WebResponseTextWriter(self); readonly; lazy;
     {$IF ROSDK}
     {$ELSE}
-    property OutputStream: Stream read HttpServerResponse.ContentStream;
+    property OutputStream: Stream := new WebResponseOutputStream(self); readonly; lazy;
     {$ENDIF}
     //property Filter: System.IO.Stream; public;
     property SuppressContent: Boolean; public;
@@ -376,10 +431,66 @@ type
 
   private
 
+    fBufferedContent: not nullable MemoryStream;
+    fTransmittedContent: nullable Stream;
+    fStreaming: Boolean;
+    fCompleted: Boolean;
+    fCookiesCommitted: Boolean;
     fCacheControl: nullable String;
     fCharset: nullable String;
     fContentEncoding: Encoding;
     fStatusDescription: nullable String;
+
+  assembly
+
+    method WriteBytes(aBuffer: array of Byte; aOffset: Int32; aCount: Int32);
+    begin
+      if fCompleted then
+        raise new InvalidOperationException("The HTTP response has already completed.");
+      if fStreaming then
+        HttpServerResponse.WriteChunk(aBuffer, aOffset, aCount)
+      else
+        fBufferedContent.Write(aBuffer, aOffset, aCount);
+    end;
+
+    method Complete;
+    begin
+      if fCompleted then
+        exit;
+
+      CommitCookies;
+      if fStreaming then
+        HttpServerResponse.EndChunkedResponse
+      else begin
+        HttpServerResponse.ContentStream := coalesce(fTransmittedContent, fBufferedContent);
+        HttpServerResponse.ContentStream.Seek(0, SeekOrigin.Begin);
+      end;
+      fCompleted := true;
+    end;
+
+  private
+
+    method CommitCookies;
+    begin
+      if fCookiesCommitted then
+        exit;
+
+      var lCookieIndex := 0;
+      for each lCookieHeader in Cookies.GetCookieHeaderStrings do begin
+        if lCookieIndex = 0 then
+          HttpServerResponse.Header.SetHeaderValue("Set-Cookie", lCookieHeader)
+        else
+          HttpServerResponse.Header["Set-Cookie"].Add(lCookieHeader);
+        inc(lCookieIndex);
+      end;
+      fCookiesCommitted := true;
+    end;
+
+    method EnsureNotStreaming(aOperation: not nullable String);
+    begin
+      if fStreaming then
+        raise new InvalidOperationException($"Cannot {aOperation} after the HTTP response has started streaming.");
+    end;
 
     method GetHeader(aName: String): nullable String;
     begin

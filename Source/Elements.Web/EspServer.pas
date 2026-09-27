@@ -169,17 +169,8 @@ type
 
               // Redirect and End finish the response by throwing. Finalize their
               // cookies and body just like a normally completed page or handler.
-              if not assigned(lTransferPath) then begin
-                var lCookieIndex := 0;
-                for each lCookieHeader in lContext.Response.Cookies.GetCookieHeaderStrings do begin
-                  if lCookieIndex = 0 then
-                    lContext.Response.HttpServerResponse.Header.SetHeaderValue("Set-Cookie", lCookieHeader)
-                  else
-                    lContext.Response.HttpServerResponse.Header["Set-Cookie"].Add(lCookieHeader);
-                  inc(lCookieIndex);
-                end;
-                aEventArgs.Response.ContentStream.Seek(0, SeekOrigin.Begin);
-              end;
+              if not assigned(lTransferPath) then
+                lContext.Response.Complete;
 
             finally
               WebContext.Current := lPreviousContext;

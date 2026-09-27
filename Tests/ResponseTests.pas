@@ -60,6 +60,84 @@ type
       end;
     end;
 
+    method FlushStreamsBeforeHandlerCompletion;
+    begin
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lFactory := new StreamingCompletionFactory;
+      var lServer := new WebServer(PageFactory := lFactory);
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Sockets.TcpClient do begin
+          lClient.ReceiveTimeout := 5000;
+          lClient.Connect(System.Net.IPAddress.Loopback, lPort);
+          using lStream := lClient.GetStream do begin
+            var lRequest := System.Text.Encoding.ASCII.GetBytes("GET /stream HTTP/1.1"+#13#10+"Host: 127.0.0.1"+#13#10+"Connection: close"+#13#10#13#10);
+            lStream.Write(lRequest, 0, length(lRequest));
+            var lBuffer := new Byte[4096];
+            var lFirstResponse := "";
+            while not lFirstResponse.Contains("first") do begin
+              var lCount := lStream.Read(lBuffer, 0, length(lBuffer));
+              Assert.IsTrue(lCount > 0, "Stream ended before the flushed response bytes arrived.");
+              lFirstResponse := lFirstResponse+System.Text.Encoding.UTF8.GetString(lBuffer, 0, lCount);
+            end;
+            Assert.IsTrue(lFirstResponse.ToLowerInvariant.Contains("transfer-encoding: chunked"));
+            Assert.IsFalse(lFirstResponse.Contains("second"));
+            lFactory.ContinueEvent.Set;
+            var lRemainingResponse := "";
+            while not lRemainingResponse.Contains("0"+#13#10#13#10) do begin
+              var lCount := lStream.Read(lBuffer, 0, length(lBuffer));
+              Assert.IsTrue(lCount > 0, "Stream ended before the chunked response terminator arrived.");
+              lRemainingResponse := lRemainingResponse+System.Text.Encoding.UTF8.GetString(lBuffer, 0, lCount);
+            end;
+            Assert.IsTrue(lRemainingResponse.Contains("second"));
+          end;
+        end;
+      finally
+        lFactory.ContinueEvent.Set;
+        lServer.Stop;
+      end;
+    end;
+
+  end;
+
+  StreamingCompletionFactory = class(WebPageFactory)
+  public
+
+    property ContinueEvent := new System.Threading.ManualResetEventSlim(false); readonly;
+
+    method FindClassForPath(aPath: not nullable String): nullable Object; override;
+    begin
+      if aPath = "/stream" then
+        result := new StreamingCompletionHandler(ContinueEvent);
+    end;
+
+    method FindRedirectForPath(aPath: not nullable String): nullable String; override; empty;
+
+  end;
+
+  StreamingCompletionHandler = class(IHttpHandler)
+  public
+
+    constructor(aContinueEvent: not nullable System.Threading.ManualResetEventSlim);
+    begin
+      fContinueEvent := aContinueEvent;
+    end;
+
+    method ProcessRequest(aContext: WebContext);
+    begin
+      aContext.Response.ContentType := "text/plain";
+      aContext.Response.Write("first");
+      aContext.Response.Flush;
+      if not fContinueEvent.Wait(5000) then
+        raise new TimeoutException("The streaming response test did not release the handler.");
+      aContext.Response.Write("second");
+    end;
+
+  private
+    fContinueEvent: not nullable System.Threading.ManualResetEventSlim;
   end;
 
   CookieCompletionFactory = class(WebPageFactory)
