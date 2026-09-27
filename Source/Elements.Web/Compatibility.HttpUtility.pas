@@ -6,7 +6,20 @@ type
 
     method UrlEncode(aString: nullable String): nullable String;
     begin
-      result := Url.AddPercentEncodingsToPath(aString);
+      if not assigned(aString) then
+        exit;
+
+      // Encode a query/form value, not a path: slashes and colons are data.
+      var lResult := new StringBuilder;
+      for each b in Convert.ToUtf8Bytes(aString) do begin
+        if (b in [48..57, 65..90, 97..122]) or (b in [45, 46, 95, 42]) then
+          lResult.Append(Char(b))
+        else if b = 32 then
+          lResult.Append("+")
+        else
+          lResult.Append("%"+Convert.ToHexString(ord(b), 2));
+      end;
+      result := lResult.ToString;
     end;
 
     method UrlDecode(aString: nullable String): nullable String;

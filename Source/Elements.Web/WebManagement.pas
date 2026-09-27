@@ -57,7 +57,8 @@ type
       end;
       var lSource := lPath.StartsWith("/__esp/source/");
       var lDiagnostics := lPath in ["/__esp/diagnostics", "/__esp/errors"];
-      if not lDiagnostics and not lSource and ((not RequireUpdateTrigger and (length(AuthorizationToken) = 0)) or
+      var lStatusPage := lPath = "/__esp/status";
+      if not lDiagnostics and not lSource and not lStatusPage and ((not RequireUpdateTrigger and (length(AuthorizationToken) = 0)) or
          not (lPath in ["/__esp/update", "/__esp/status"])) then
         exit false;
       result := true;
@@ -86,6 +87,20 @@ type
         aEvent.Response.Header.SetHeaderValue("Allow", if lUpdate then "POST" else "GET, HEAD");
         aEvent.Response.ContentString := '{"error":"Method not allowed"}';
         exit;
+      end;
+      if lStatusPage then begin
+        // Authentication and publication mode must not select a different HTML UI.
+        if not DebugMode and not RequireUpdateTrigger and (length(AuthorizationToken) = 0) then begin
+          aEvent.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(404);
+          aEvent.Response.ContentString := '{"error":"Status page unavailable"}';
+          exit;
+        end;
+        if aEvent.Request.QueryString["format"] ≠ "json" then begin
+          aEvent.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(200);
+          aEvent.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
+          aEvent.Response.ContentString := if lMethod = "head" then "" else RenderHostStatusPage(lToken);
+          exit;
+        end;
       end;
       if lSource then begin
         var lHtml := RenderDiagnosticSource(lPath.Substring(length("/__esp/source/")));

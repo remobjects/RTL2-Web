@@ -503,6 +503,13 @@ type
     begin
       if not DebugMode then
         exit;
+      result := RenderHostStatusPage(nil);
+    end;
+
+    method RenderHostStatusPage(aToken: nullable String): not nullable String; private;
+    begin
+      var lQuery := if (length(AuthorizationToken) > 0) and (length(aToken) > 0) then "?token="+HttpUtility.UrlEncode(aToken) else "";
+      var lJsonQuery := "?format=json"+(if length(lQuery) > 0 then "&"+lQuery.Substring(1) else "");
       var lStatus: nullable WebHostStatus;
       var lErrors := new StringBuilder;
       locking fDiagnosticMonitor do begin
@@ -517,7 +524,7 @@ type
             <tr><td>{{HtmlLandingPage.EscapeHtml(lUnit.Name)}}</td><td>{{HtmlLandingPage.EscapeHtml(lUnit.State)}}</td>
             <td><code>{{HtmlLandingPage.EscapeHtml(lUnit.Artifact)}}</code></td><td>{{HtmlLandingPage.EscapeHtml(lUnit.Error)}}</td></tr>
             """);
-      var lCompilerErrors := if lStatus:Failure is WebCompilationException then RenderCompilationErrors(lStatus.Failure as WebCompilationException) else "";
+      var lCompilerErrors := if lStatus:Failure is WebCompilationException then RenderCompilationErrors(lStatus.Failure as WebCompilationException, aToken) else "";
       result := HtmlLandingPage.RenderCardPage("ESP Status", ##"""
         <style>
           .wrap { max-width: 90rem; }
@@ -530,7 +537,7 @@ type
           li { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 0.5rem; }
         </style>
         <h1>ESP Status</h1>
-        <nav><a href="/__esp/status">Refresh status</a> · <a href="/__esp/diagnostics">Diagnostics</a> · <a href="/__esp/errors">Request errors</a> · ESPDebugMode enabled</nav>
+        <nav><a href="/__esp/status{{HtmlLandingPage.EscapeHtml(lQuery)}}">Refresh status</a> · <a href="/__esp/diagnostics{{HtmlLandingPage.EscapeHtml(lQuery)}}">Diagnostics</a> · <a href="/__esp/errors{{HtmlLandingPage.EscapeHtml(lQuery)}}">Request errors</a> · <a href="/__esp/status{{HtmlLandingPage.EscapeHtml(lJsonQuery)}}">JSON</a> · ESPDebugMode {{if DebugMode then "enabled" else "disabled"}}</nav>
         <p>{{HtmlLandingPage.EscapeHtml(coalesce(lStatus:Summary, "This server has not supplied compilation status."))}}</p>
         <p>Active generation: <strong>{{lStatus:ActiveGeneration}}</strong> · Latest attempt: <strong>{{lStatus:Generation}}</strong></p>
         <p>Retained generations: {{HtmlLandingPage.EscapeHtml(lStatus:RetainedGenerations)}}</p>
@@ -618,7 +625,7 @@ type
       result := "<unknown>/"+lPath.Substring(lPath.LastIndexOf("/")+1);
     end;
 
-    method RenderCompilationErrors(aFailure: not nullable WebCompilationException): not nullable String;
+    method RenderCompilationErrors(aFailure: not nullable WebCompilationException; aToken: nullable String := nil): not nullable String;
     begin
       var lResult := new StringBuilder;
       lResult.Append($"<p class=""message"">{HtmlLandingPage.EscapeHtml(aFailure.Message)}</p>");
@@ -632,6 +639,8 @@ type
         var lLocationHtml := HtmlLandingPage.EscapeHtml(lLocation);
         var lUrl := DiagnosticSourceLink(lDiagnostic.FileName, coalesce(lDiagnostic.SourceFileName, lDiagnostic.FileName), lDiagnostic.Line);
         if assigned(lUrl) then begin
+          if (length(AuthorizationToken) > 0) and (length(aToken) > 0) then
+            lUrl := lUrl+"?token="+HttpUtility.UrlEncode(aToken);
           lLocationHtml := $"<a href=""{HtmlLandingPage.EscapeHtml(lUrl)}"">{lLocationHtml}</a>";
         end;
         var lCode := if length(lDiagnostic.Code) > 0 then $" <code>{HtmlLandingPage.EscapeHtml(lDiagnostic.Code)}</code>" else "";

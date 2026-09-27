@@ -8,6 +8,69 @@ type
   DiagnosticsTests = public class(Test)
   public
 
+    method StatusFormatDoesNotDependOnPublicationOrAuthentication;
+    begin
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lServer := new WebServer(HostStatus := new WebHostStatus(Summary := "Ready <test>", ActiveGeneration := 7, Generation := 8));
+      lServer.ManagementRequest += (s, e) -> begin
+        var lArgs := e as WebManagementEventArgs;
+        Assert.IsTrue(lArgs.Json, "HTML status must use the shared renderer.");
+        lArgs.Body := '{"publication":"preserved"}';
+      end;
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Http.HttpClient do begin
+          lClient.BaseAddress := new System.Uri($"http://127.0.0.1:{lPort}");
+          for each lTrigger in [false, true] do
+            for each lToken in ["", "test-token"] do
+              for each lDebug in [false, true] do begin
+                lServer.RequireUpdateTrigger := lTrigger;
+                lServer.AuthorizationToken := lToken;
+                lServer.DebugMode := lDebug;
+                for each lFormat in ["", "&format=html", "&format=json"] do
+                  using lResponse := lClient.GetAsync("/__esp/status?token="+lToken+lFormat).GetAwaiter.GetResult do begin
+                    if not lTrigger and not lDebug and (length(lToken) = 0) then begin
+                      Assert.AreEqual(Integer(lResponse.StatusCode), 404);
+                      continue;
+                    end;
+                    Assert.AreEqual(Integer(lResponse.StatusCode), 200);
+                    var lBody := lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+                    if lFormat = "&format=json" then begin
+                      Assert.AreEqual(lResponse.Content.Headers.ContentType.MediaType, "application/json");
+                      Assert.AreEqual(lBody, '{"publication":"preserved"}');
+                    end
+                    else begin
+                      Assert.AreEqual(lResponse.Content.Headers.ContentType.MediaType, "text/html");
+                      Assert.IsTrue(lBody.Contains("<h1>ESP Status</h1>"));
+                      Assert.IsTrue(lBody.Contains("Ready &lt;test&gt;"));
+                      Assert.IsTrue(lBody.Contains("<strong>7</strong>"));
+                      Assert.IsFalse(lBody.Contains("publication"));
+                      Assert.IsTrue(lBody.Contains("ESPDebugMode "+(if lDebug then "enabled" else "disabled")));
+                      if length(lToken) > 0 then
+                        Assert.IsTrue(lBody.Contains('/__esp/diagnostics?token=test-token'));
+                    end;
+                  end;
+                if length(lToken) > 0 then
+                  using lDenied := lClient.GetAsync("/__esp/status?format=html").GetAwaiter.GetResult do
+                    Assert.AreEqual(Integer(lDenied.StatusCode), 401);
+              end;
+          using lRequest := new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Head, "/__esp/status") do begin
+            lRequest.Headers.Authorization := new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "test-token");
+            using lResponse := lClient.SendAsync(lRequest).GetAwaiter.GetResult do begin
+              Assert.AreEqual(Integer(lResponse.StatusCode), 200);
+              Assert.AreEqual(lResponse.Content.Headers.ContentType.MediaType, "text/html");
+              Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, "");
+            end;
+          end;
+        end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
     method ConfiguredErrorPagesHandleEveryErrorStatusInBothDebugModes;
     begin
       var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
@@ -123,6 +186,56 @@ type
       finally
         lServer.Stop;
       end;
+    end;
+
+    method Custom404PreservesOriginalUrlAcrossRedirect;
+    begin
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lServer := new WebServer(PageFactory := new Redirect404TestFactory);
+      lServer.Start(lPort);
+      try
+        using lHandler := new System.Net.Http.HttpClientHandler(AllowAutoRedirect := false) do
+        using lClient := new System.Net.Http.HttpClient(lHandler) do begin
+          lClient.BaseAddress := new System.Uri($"http://127.0.0.1:{lPort}");
+          var lPath := "/oxygene/whatsnew?ref=blogs.remobjects.com&value=a%2Bb%20c&next=https%3A%2F%2Fexample.com%2Fa%3Bx";
+          using lRequest := new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, lPath) do begin
+            lRequest.Headers.Host := "remobjects.com";
+            lRequest.Headers.Add("X-Forwarded-Proto", "https");
+            using lResponse := lClient.SendAsync(lRequest).GetAwaiter.GetResult do begin
+              Assert.AreEqual(Integer(lResponse.StatusCode), 301);
+              var lLocation := lResponse.Headers.Location;
+              Assert.AreEqual(lLocation.Host, "www.remobjects.com");
+              Assert.AreEqual(lLocation.AbsolutePath, "/404.ashx");
+              // A query value must escape the nested URL's scheme and slashes.
+              Assert.IsTrue(lLocation.Query.ToLowerInvariant.Contains("https%3a%2f%2fremobjects.com%2f"));
+              // Replay locally with the redirected public host; never contact the website.
+              using lRedirect := new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, lLocation.PathAndQuery) do begin
+                lRedirect.Headers.Host := "www.remobjects.com";
+                lRedirect.Headers.Add("X-Forwarded-Proto", "https");
+                using lFinal := lClient.SendAsync(lRedirect).GetAwaiter.GetResult do begin
+                  Assert.AreEqual(Integer(lFinal.StatusCode), 200);
+                  Assert.AreEqual(lFinal.Content.ReadAsStringAsync.GetAwaiter.GetResult, "https://remobjects.com"+lPath);
+                end;
+              end;
+            end;
+          end;
+        end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
+    method UrlEncodeUsesQueryValueEncoding;
+    begin
+      Assert.IsNil(HttpUtility.UrlEncode(nil));
+      Assert.AreEqual(HttpUtility.UrlEncode(""), "");
+      Assert.AreEqual(HttpUtility.UrlEncode("https://example.com/a b+c?x=1&y=2;#é"),
+        "https%3A%2F%2Fexample.com%2Fa+b%2Bc%3Fx%3D1%26y%3D2%3B%23%C3%A9");
+      Assert.AreEqual(HttpUtility.UrlDecode(HttpUtility.UrlEncode("https://example.com/a b+c?x=%2F&y=é")),
+        "https://example.com/a b+c?x=%2F&y=é");
     end;
 
     method PublicRequestUrlsUseProxyAuthority;
@@ -297,6 +410,38 @@ type
       end;
     end;
 
+  end;
+
+  Redirect404TestFactory = class(WebPageFactory)
+  public
+    method CreateApplication: nullable WebApplication; override; empty;
+
+    method FindClassForPath(aPath: not nullable String): nullable Object; override;
+    begin
+      if aPath = "/404.ashx" then
+        result := new Redirect404TestHandler;
+    end;
+
+    method FindRedirectForPath(aPath: not nullable String): nullable String; override; empty;
+
+    method FindErrorPage(aCode: Integer): nullable WebErrorPage; override;
+    begin
+      if aCode = 404 then
+        result := new WebErrorPage("/404.ashx", false, true, false);
+    end;
+  end;
+
+  Redirect404TestHandler = class(IHttpHandler)
+  public
+    method ProcessRequest(aContext: WebContext);
+    begin
+      if aContext.Request.ServerVariables["HTTP_HOST"] = "remobjects.com" then
+        aContext.Response.RedirectPermanent("https://www.remobjects.com"+
+          aContext.Request.ServerVariables["PATH_INFO"]+"?"+aContext.Request.QueryString.ToString);
+      var lPayload := HttpUtility.UrlDecode(aContext.Request.QueryString.ToString);
+      var lOriginal := Url.UrlWithString(lPayload.Substring(lPayload.IndexOf(";")+1));
+      aContext.Response.Write(lOriginal.ToAbsoluteString);
+    end;
   end;
 
   ErrorPageTestFactory = class(WebPageFactory)
