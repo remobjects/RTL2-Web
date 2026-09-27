@@ -31,7 +31,8 @@ type
 
       var lHostHeader := coalesce(fHeaders["Host"], aUrl.Host);
       fServerVariables.Set("HTTP_HOST", lHostHeader);
-      fServerVariables.Set("HTTP_PORT", aUrl.Port.ToString);
+      var lPublicPort := coalesce(aUrl.Port, if aUrl.Scheme = "https" then 443 else 80);
+      fServerVariables.Set("HTTP_PORT", lPublicPort.ToString);
 
       fServerVariables.Set("QUERY_STRING", QueryString.ToString);
       fServerVariables.Set("REQUEST_METHOD", aRequest.Header.RequestType);
@@ -40,7 +41,7 @@ type
       fServerVariables.Set("URL", aUrl.Path);
 
       fServerVariables.Set("SERVER_NAME", aUrl.Host);
-      fServerVariables.Set("SERVER_PORT", aUrl.Port.ToString);
+      fServerVariables.Set("SERVER_PORT", lPublicPort.ToString);
       fServerVariables.Set("SERVER_PROTOCOL", "HTTP/1.1");
       fServerVariables.Set("SERVER_SOFTWARE", $"RemObjects Elements Server Pages (running on {Environment.Platform})");
       fServerVariables.Set("HTTPS", if aUrl.Scheme = "https" then "on" else "off");

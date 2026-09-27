@@ -45,8 +45,22 @@ type
                                       aErrorPath: nullable String := nil; aErrorQuery: nullable String := nil;
                                       aErrorCode: Integer := 0; aFailure: nullable WebRequestError := nil); private;
     begin
+      var lRequestPath := coalesce(aErrorPath, aEventArgs.Request.Path);
+      var lContext: nullable WebContext;
       try
-        var lRequestPath := coalesce(aErrorPath, aEventArgs.Request.Path);
+        {$IF ECHOES}
+        if (lRequestPath = "/__esp/logo.png") and (caseInsensitive(aEventArgs.Request.Header.RequestType) in ["get", "head"]) then begin
+          var lLogo := (typeOf(WebServer) as System.Type).Assembly.GetManifestResourceStream("RemObjects.Elements.Web.Logo.png");
+          if assigned(lLogo) then begin
+            aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.OK;
+            aEventArgs.Response.Header.SetHeaderValue("Content-Type", "image/png");
+            aEventArgs.Response.Header.SetHeaderValue("Cache-Control", "public, max-age=86400");
+            aEventArgs.Response.Header.SetHeaderValue("X-Content-Type-Options", "nosniff");
+            aEventArgs.Response.ContentStream := new WrappedPlatformStream(lLogo);
+            exit;
+          end;
+        end;
+        {$ENDIF}
         if not assigned(aErrorPath) and HandleManagementRequest(aEventArgs, aFailure) then
           exit;
         if ((lRequestPath = "/__esp/status") and not RequireUpdateTrigger) or lRequestPath.StartsWith("/__esp/source/") then begin
@@ -109,7 +123,7 @@ type
         end;
 
         while true do begin
-          var lContext := CreateRequestContext(aEventArgs, lRequestPath, lRequestQuery, aFactory);
+          lContext := CreateRequestContext(aEventArgs, lRequestPath, lRequestQuery, aFactory);
           var lPreviousContext := WebContext.Current;
           var lObject: nullable Object;
           WebContext.Current := lContext;
@@ -268,6 +282,8 @@ type
             end;
           end;
           aFailure:CaptureException(E);
+          if not assigned(aErrorPath) then
+            NotifyApplicationError(aEventArgs, aFactory, lContext, lRequestPath, E);
           Log($"Unhandled ESP request exception for '{aEventArgs.Request.Path}': {E}");
           if not assigned(aErrorPath) then begin
             try
@@ -668,17 +684,55 @@ type
 
     method CreateRequestContext(aEventArgs: HttpRequestEventArgs; aPath: String; aQuery: String; aFactory: nullable WebPageFactory): WebContext;
     begin
-      var lHost := String(aEventArgs.Request.Header["Host"]:Value):SubstringToFirstOccurrenceOf(":");
-      var lPort := aEventArgs.Connection.Binding.Port;
-      with matching lLocalEndPoint := IPEndPoint(aEventArgs.Connection.LocalEndPoint) do
-        lPort := lLocalEndPoint.Port;
       var lScheme := "http";
-      var lForwardedScheme := aEventArgs.Request.Header["X-Forwarded-Proto"]:Value:SubstringToFirstOccurrenceOf(","):Trim;
-      if caseInsensitive(lForwardedScheme) in ["http", "https"] then
+      var lForwardedScheme := aEventArgs.Request.Header["X-Forwarded-Proto"]:Value:SubstringToFirstOccurrenceOf(","):Trim:ToLowerInvariant;
+      if lForwardedScheme in ["http", "https"] then
         lScheme := lForwardedScheme as not nullable;
-      var lUrl := Url.UrlWithComponents(lScheme, lHost, lPort, aPath, aQuery, nil, nil);
+
+      // Use the same public authority for host and port. The listening socket
+      // belongs to the upstream connection, not necessarily the public URL.
+      var lAuthority := ParseRequestAuthority(lScheme,
+        aEventArgs.Request.Header["X-Forwarded-Host"]:Value:SubstringToFirstOccurrenceOf(","):Trim);
+      if not assigned(lAuthority) then
+        lAuthority := ParseRequestAuthority(lScheme, aEventArgs.Request.Header["Host"]:Value:Trim);
+      var lDefaultPort := if lScheme = "https" then 443 else 80;
+      var lHost: String;
+      var lPort: Integer;
+      if assigned(lAuthority) then begin
+        lHost := lAuthority.Host;
+        lPort := coalesce(lAuthority.Port, lDefaultPort);
+      end
+      else begin
+        lPort := aEventArgs.Connection.Binding.Port;
+        lHost := "localhost";
+        with matching lLocalEndPoint := IPEndPoint(aEventArgs.Connection.LocalEndPoint) do begin
+          lPort := lLocalEndPoint.Port;
+          lHost := lLocalEndPoint.Address.ToString;
+        end;
+      end;
+      with matching lForwardedPort := Convert.TryToInt32(aEventArgs.Request.Header["X-Forwarded-Port"]:Value:SubstringToFirstOccurrenceOf(","):Trim) do
+        if (lForwardedPort > 0) and (lForwardedPort ≤ 65535) then
+          lPort := lForwardedPort;
+      var lPublicAuthority := if lHost.Contains(":") then "["+lHost+"]" else lHost;
+      if lPort ≠ lDefaultPort then
+        lPublicAuthority := lPublicAuthority+":"+lPort.ToString;
+      var lUrl := Url.UrlWithString(lScheme+"://"+lPublicAuthority+aPath+
+        (if length(aQuery) > 0 then "?"+aQuery else ""));
       result := new WebContext(new RemObjects.Elements.Web.WebRequest(aEventArgs.Request, lUrl, aEventArgs.Connection.RemoteEndPoint, aEventArgs.Connection.LocalEndPoint), new WebResponse(aEventArgs.Response), aFactory);
       result.Server := new WebServerForContext(self, result);
+    end;
+
+    method ParseRequestAuthority(aScheme: not nullable String; aAuthority: nullable String): nullable Url; private;
+    begin
+      if length(aAuthority) = 0 then
+        exit;
+      for each c in aAuthority do
+        if c in ['/', '\', '?', '#', '@', ' ', #9, #10, #13] then
+          exit;
+      result := Url.TryUrlWithString(aScheme+"://"+aAuthority);
+      if assigned(result) and ((length(result.Host) = 0) or
+          (assigned(result.Port) and ((result.Port < 1) or (result.Port > 65535)))) then
+        result := nil;
     end;
 
     method SetPageFactory(aFactory: nullable WebPageFactory);
@@ -857,7 +911,7 @@ type
           }
         </style>
         <a href="https://www.remobjects.com/elements" target="_blank" rel="noreferrer">
-          <img class="product-logo" src="https://www.remobjects.com/images/product-logos/Elements-1024.png" width="88" height="88" alt="Elements" />
+          <img class="product-logo" src="/__esp/logo.png" width="88" height="88" alt="Elements" />
         </a>
         <div class="status">HTTP {{aCode}}</div>
         <h1>{{HtmlLandingPage.EscapeHtml(aTitle)}}</h1>
@@ -894,7 +948,7 @@ type
         exit;
       if caseInsensitive(lFileName.LastPathComponent) = "web.config" then
         exit;
-      if caseInsensitive(lFileName.PathExtension) in [".aspx", ".ascx", ".master", ".ashx", ".asmx", ".pas", ".cs", ".swift", ".java", ".vb", ".go"] then
+      if caseInsensitive(lFileName.PathExtension) in [".aspx", ".ascx", ".master", ".ashx", ".asmx", ".asax", ".pas", ".cs", ".swift", ".java", ".vb", ".go"] then
         exit;
       if not lFileName.FileExists then begin
         var lResolved := ResolveStaticFile(aRequestPath, lRoot);
@@ -973,6 +1027,11 @@ type
 
   WebServerForContext = public class
   public
+
+    method GetLastError: nullable Exception;
+    begin
+      result := Context.Error;
+    end;
 
     method OpenFile(aVirtualPath: not nullable String): nullable Stream;
     begin
@@ -1151,6 +1210,31 @@ type
       {$ENDIF}
     end;
 
+    // Hosts can override registration; .NET ESP also discovers an application
+    // class in the factory assembly (App_Code for incremental generations).
+    method CreateApplication: nullable WebApplication; virtual;
+    begin
+      {$IF ECHOES}
+      locking fApplicationMonitor do begin
+        if not fApplicationResolved then begin
+          var lApplicationType: nullable System.Type;
+          var lTypes := GetType.Assembly.GetTypes;
+          for each lType in lTypes do
+            if not lType.IsAbstract and not lType.ContainsGenericParameters and lType.IsSubclassOf(typeOf(WebApplication)) and
+               not lTypes.Any(t -> not t.IsAbstract and not t.ContainsGenericParameters and t.IsSubclassOf(lType)) then begin
+              if assigned(lApplicationType) then
+                raise new InvalidOperationException("An ESP application assembly must contain only one concrete WebApplication class.");
+              lApplicationType := lType;
+            end;
+          fApplicationType := lApplicationType;
+          fApplicationResolved := true;
+        end;
+      end;
+      if assigned(fApplicationType) then
+        result := System.Activator.CreateInstance(fApplicationType) as WebApplication;
+      {$ENDIF}
+    end;
+
     method FindClassForPath(aPath: not nullable String): nullable Object; abstract;
     method FindRedirectForPath(aPath: not nullable String): nullable String; abstract;
     method FindResourcesForPath(aPath: not nullable String): nullable String; virtual; empty;
@@ -1164,6 +1248,14 @@ type
                          FindClassForPath(aPath+".asmx"),
                          FindClassForPath(aPath));
     end;
+  private
+
+    {$IF ECHOES}
+    fApplicationType: nullable System.Type;
+    fApplicationResolved: Boolean;
+    fApplicationMonitor := new Monitor;
+    {$ENDIF}
+
   end;
 
   WebResolvePageEventArgs = public class(EventArgs)
@@ -1337,6 +1429,15 @@ type
     begin
       for each lFactory in fFactories do begin
         result := lFactory.OpenResource(aPath, aPublicOnly);
+        if assigned(result) then
+          exit;
+      end;
+    end;
+
+    method CreateApplication: nullable WebApplication; override;
+    begin
+      for each lFactory in fFactories do begin
+        result := lFactory.CreateApplication;
         if assigned(result) then
           exit;
       end;

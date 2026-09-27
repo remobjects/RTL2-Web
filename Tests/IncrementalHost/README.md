@@ -106,3 +106,11 @@ in memory, newest first, and resets on restart. Query strings, request bodies,
 cookies and authorization headers are not collected. A custom error page does
 not suppress the original failure; JSON includes both `status` and
 `responseStatus`.
+
+## Application error notifications
+
+`error_handlers.py` accepts the same `--ebuild`, `--compiler` and `--web-dll`
+arguments as the fixture above. It verifies inline Global.asax, inherited Global.asax, and automatic App_Code
+handler discovery for typed and legacy signatures in lazy and full builds, notification
+before custom error-page rendering, explicit status exclusion, and lazy compiler
+failures. See [the handler API](../../Source/Elements.Web/ApplicationErrors.md).

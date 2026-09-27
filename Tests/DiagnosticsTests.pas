@@ -46,6 +46,140 @@ type
       end;
     end;
 
+    method ApplicationErrorSignaturesAndRequestIsolation;
+    begin
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lFactory := new NotificationTestFactory;
+      var lComposite := new WebCompositePageFactory(new WebApplicationLifetime);
+      lComposite.AddFactory(lFactory);
+      var lServer := new WebServer(PageFactory := lComposite);
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Http.HttpClient do begin
+          lClient.BaseAddress := new System.Uri($"http://127.0.0.1:{lPort}");
+          for each lLegacy in [false, true] do begin
+            lFactory.Legacy := lLegacy;
+            NotificationApplication.Errors.Clear;
+            LegacyNotificationApplication.Calls := 0;
+            using lResponse := lClient.GetAsync("/throw?original=yes").GetAwaiter.GetResult do begin
+              Assert.AreEqual(Integer(lResponse.StatusCode), 500);
+              Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, "notified:True");
+            end;
+            Assert.AreEqual(NotificationApplication.Errors.Count, 1);
+            Assert.AreEqual(LegacyNotificationApplication.Calls, if lLegacy then 1 else 0);
+            var lError := NotificationApplication.Errors["original=yes"];
+            Assert.AreEqual(lError.Exception.Message, "original error");
+            Assert.AreEqual(lError.RequestMethod, "GET");
+            Assert.AreEqual(lError.PagePath, "/throw");
+            Assert.AreEqual(lError.StatusCode, 500);
+            Assert.IsTrue(lError.RequestUrl.EndsWith("/throw?original=yes"));
+            Assert.AreEqual(length(lError.CompilationDiagnostics), 0);
+            using lResponse := lClient.GetAsync("/status?code=500").GetAwaiter.GetResult do
+              Assert.AreEqual(Integer(lResponse.StatusCode), 500);
+            Assert.AreEqual(NotificationApplication.Errors.Count, 1);
+          end;
+          lFactory.Legacy := false;
+          using lResponse := lClient.GetAsync("/compile?compiler=yes").GetAwaiter.GetResult do
+            Assert.AreEqual(Integer(lResponse.StatusCode), 500);
+          var lCompiler := NotificationApplication.Errors["compiler=yes"];
+          Assert.AreEqual(lCompiler.CompilationDiagnostics[0].Code, "E42");
+          Assert.AreEqual(lCompiler.CompilationDiagnostics[0].Line, 13);
+          (lCompiler.Exception as WebCompilationException).Diagnostics[0].Message := "changed";
+          var lCopy := lCompiler.CompilationDiagnostics;
+          lCopy[0] := nil;
+          Assert.AreEqual(lCompiler.CompilationDiagnostics[0].Message, "broken page");
+          var lRequests := new List<System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage>>;
+          for i := 0 to 9 do
+            lRequests.Add(lClient.GetAsync($"/throw?parallel={i}"));
+          for each lRequest in lRequests do
+            using lResponse := lRequest.GetAwaiter.GetResult do
+              Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, "notified:True");
+          for i := 0 to 9 do
+            Assert.IsTrue(NotificationApplication.Errors[$"parallel={i}"].RequestUrl.EndsWith($"/throw?parallel={i}"));
+          // A notification failure still allows the custom page to run.
+          using lResponse := lClient.GetAsync("/throw?fail=yes").GetAwaiter.GetResult do
+            Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, "notified:True");
+          lFactory.BuiltIn := true;
+          using lResponse := lClient.GetAsync("/throw?builtin=yes").GetAwaiter.GetResult do begin
+            Assert.AreEqual(Integer(lResponse.StatusCode), 500);
+            Assert.IsTrue(NotificationApplication.Errors.ContainsKey("builtin=yes"));
+          end;
+          lFactory.BuiltIn := false;
+          using lResponse := lClient.GetAsync("/transfer?incoming=yes").GetAwaiter.GetResult do
+            Assert.AreEqual(Integer(lResponse.StatusCode), 500);
+          var lTransferred := NotificationApplication.Errors["transferred=yes"];
+          Assert.AreEqual(lTransferred.PagePath, "/throw");
+          Assert.IsTrue(lTransferred.RequestUrl.EndsWith("/transfer?incoming=yes"));
+          // A failure in the error page must not recursively notify.
+          var lCount := NotificationApplication.Errors.Count;
+          lFactory.FailErrorPage := true;
+          using lResponse := lClient.GetAsync("/throw?secondary=yes").GetAwaiter.GetResult do
+            Assert.AreEqual(Integer(lResponse.StatusCode), 500);
+          Assert.AreEqual(NotificationApplication.Errors.Count, lCount+1);
+        end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
+    method PublicRequestUrlsUseProxyAuthority;
+    begin
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lServer := new WebServer(PageFactory := new NotificationTestFactory);
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Http.HttpClient do begin
+          lClient.BaseAddress := new System.Uri($"http://127.0.0.1:{lPort}");
+          // Host, forwarded proto, forwarded host, forwarded port, public origin, port.
+          var lCases: array of array of String := [
+            [$"localhost:{lPort}", "", "", "", $"http://localhost:{lPort}", lPort.ToString],
+            ["staging.remobjects.com", "https", "", "", "https://staging.remobjects.com", "443"],
+            ["staging.remobjects.com:9443", "https", "", "", "https://staging.remobjects.com:9443", "9443"],
+            ["public.example", "", "", "", "http://public.example", "80"],
+            ["internal:5002", "https", "public.example", "", "https://public.example", "443"],
+            ["internal:5002", "HTTPS, http", "public.example:8443, internal:5002", "9443, 5002", "https://public.example:9443", "9443"],
+            ["internal:5002", "https", "public.example:8443", "443", "https://public.example", "443"],
+            ["public.example", "https", "https://invalid.example/path", "invalid", "https://public.example", "443"],
+            ["public.example:8443", "https", "", "70000", "https://public.example:8443", "8443"],
+            ["[::1]:8001", "", "", "", "http://[::1]:8001", "8001"],
+            ["internal:5002", "https", "[2001:db8::1]:8443", "", "https://[2001:db8::1]:8443", "8443"]
+          ];
+          for each lCase in lCases do begin
+            for each lPath in ["/url", "/throw"] do
+              using lRequest := new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, lPath+"?proxy=yes") do begin
+                lRequest.Headers.Host := lCase[0];
+                if length(lCase[1]) > 0 then
+                  lRequest.Headers.Add("X-Forwarded-Proto", lCase[1]);
+                if length(lCase[2]) > 0 then
+                  lRequest.Headers.Add("X-Forwarded-Host", lCase[2]);
+                if length(lCase[3]) > 0 then
+                  lRequest.Headers.Add("X-Forwarded-Port", lCase[3]);
+                using lResponse := lClient.SendAsync(lRequest).GetAwaiter.GetResult do begin
+                  if lPath = "/url" then begin
+                    Assert.AreEqual(Integer(lResponse.StatusCode), 200);
+                    Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult,
+                      lCase[4]+"/url?proxy=yes|"+lCase[5], lCase[4]);
+                  end
+                  else begin
+                    Assert.AreEqual(Integer(lResponse.StatusCode), 500);
+                    Assert.AreEqual(NotificationApplication.Errors["proxy=yes"].RequestUrl,
+                      lCase[4]+"/throw?proxy=yes", lCase[4]);
+                  end;
+                end;
+              end;
+          end;
+        end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
     method RequestHistoryCopiesCompilerDiagnostics;
     begin
       var lFailure := new WebCompilationException("Compilation failed");
@@ -170,6 +304,8 @@ type
 
     property FailErrorPage: Boolean;
 
+    method CreateApplication: nullable WebApplication; override; empty;
+
     method FindClassForPath(aPath: not nullable String): nullable Object; override;
     begin
       if aPath = "/compile" then
@@ -213,6 +349,8 @@ type
 
     property SourceFileName: nullable String;
 
+    method CreateApplication: nullable WebApplication; override; empty;
+
     method FindClassForPath(aPath: not nullable String): nullable Object; override;
     begin
       if aPath = "/compile" then begin
@@ -239,6 +377,109 @@ type
         "/explicit": aContext.Response.StatusCode := 503;
         "/custom": aContext.Response.Write("custom");
       end;
+    end;
+
+  end;
+
+  NotificationTestFactory = class(ErrorPageTestFactory)
+  public
+
+    property Legacy: Boolean;
+    property BuiltIn: Boolean;
+
+    method FindErrorPage(aCode: Integer): nullable WebErrorPage; override;
+    begin
+      if not BuiltIn then
+        result := inherited FindErrorPage(aCode);
+    end;
+
+    method CreateApplication: nullable WebApplication; override;
+    begin
+      result := if Legacy then new LegacyNotificationApplication else new NotificationApplication;
+    end;
+
+    method FindClassForPath(aPath: not nullable String): nullable Object; override;
+    begin
+      if aPath = "/compile" then begin
+        var lError := new WebCompilationException("Compilation failed");
+        lError.AddDiagnostic("Error", "E42", "broken page", "Test.aspx", nil, 13, 4);
+        raise new System.Reflection.TargetInvocationException(lError);
+      end;
+      if aPath = "/url" then
+        exit new NotificationUrlPage;
+      if aPath = "/transfer" then
+        exit new NotificationTransferPage;
+      if (aPath = "/custom") and not FailErrorPage then
+        exit new NotificationErrorPage;
+      result := inherited FindClassForPath(aPath);
+    end;
+
+  end;
+
+  NotificationUrlPage = class(IHttpHandler)
+  public
+
+    method ProcessRequest(aContext: WebContext);
+    begin
+      aContext.Response.Write(aContext.Request.Url.ToAbsoluteString+"|"+aContext.Request.ServerVariables["SERVER_PORT"]);
+    end;
+
+  end;
+
+  NotificationTransferPage = class(IHttpHandler)
+  public
+
+    method ProcessRequest(aContext: WebContext);
+    begin
+      aContext.Server.Transfer("/throw?transferred=yes");
+    end;
+
+  end;
+
+  NotificationErrorPage = class(IHttpHandler)
+  public
+
+    method ProcessRequest(aContext: WebContext);
+    begin
+      var lQuery := HttpUtility.UrlDecode(aContext.Request.Url.QueryString);
+      // The notification must have run before custom error page execution.
+      aContext.Response.Write("notified:"+NotificationApplication.Errors.ContainsKey(lQuery.Substring(lQuery.IndexOf("?")+1)).ToString);
+    end;
+
+  end;
+
+  LegacyNotificationApplication = class(WebApplication)
+  public
+
+    class property Calls: Integer;
+
+  protected
+
+    method Application_Error(aSender: Object; aArgs: EventArgs);
+    begin
+      inc(Calls);
+      Assert.IsTrue(aSender = self);
+      Assert.IsTrue(WebContext.Current = Context);
+      NotificationApplication.Errors[Request.QueryString.ToString] := new WebErrorContext(Server.GetLastError,
+        Request.Url.ToAbsoluteString, "GET", Request.Path);
+    end;
+
+  end;
+
+  NotificationApplication = class(LegacyNotificationApplication)
+  public
+
+    class property Errors := new System.Collections.Concurrent.ConcurrentDictionary<String, WebErrorContext>; readonly;
+
+  protected
+
+    method Application_Error(aError: WebErrorContext);
+    begin
+      Assert.IsTrue(Server.GetLastError = aError.Exception);
+      Assert.IsTrue(WebContext.Current = Context);
+      Errors[Request.QueryString.ToString] := aError;
+      if Request.QueryString["fail"] = "yes" then
+        raise new Exception("notification failed");
     end;
 
   end;

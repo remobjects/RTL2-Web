@@ -8,6 +8,7 @@ type
 
   System.Web.HttpUtility = public HttpUtility;
 
+  System.Web.HttpApplication = public WebApplication;
   System.Web.HttpContext = public WebContext;
   System.Web.HttpRuntime = public WebRuntime;
   System.Web.HttpServerUtility = public WebServerForContext;

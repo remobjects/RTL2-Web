@@ -26,11 +26,18 @@ type
             var lHtml := lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult;
             Assert.IsTrue(lHtml.Contains('<main class="card">'));
             Assert.IsTrue(lHtml.Contains('name="viewport"'));
-            Assert.IsTrue(lHtml.Contains("Elements-1024.png"));
+            Assert.IsTrue(lHtml.Contains("/__esp/logo.png"));
             Assert.IsTrue(lHtml.Contains("Website not published yet"));
             Assert.IsTrue(lHtml.Contains("waiting for its first publication"));
             Assert.IsFalse(lHtml.Contains("test-token"));
             Assert.IsFalse(lHtml.Contains("/__esp/update"));
+          end;
+          using lLogo := lClient.GetAsync($"http://127.0.0.1:{lPort}/__esp/logo.png").GetAwaiter.GetResult do begin
+            Assert.AreEqual(Integer(lLogo.StatusCode), 200);
+            Assert.AreEqual(lLogo.Content.Headers.ContentType.MediaType, "image/png");
+            var lBytes := lLogo.Content.ReadAsByteArrayAsync.GetAwaiter.GetResult;
+            Assert.IsTrue(length(lBytes) > 8);
+            Assert.AreEqual(System.BitConverter.ToString(lBytes, 0, 8), "89-50-4E-47-0D-0A-1A-0A");
           end;
         end;
       finally

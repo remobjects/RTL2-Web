@@ -296,6 +296,7 @@ type
       Lifetime := coalesce(aFactory:Lifetime, WebApplicationLifetime.Default);
     end;
 
+    property Error: nullable Exception read assembly write;
     property Page: Page read Request.Page;
     property Request: WebRequest; readonly;
     property Response: WebResponse; readonly;

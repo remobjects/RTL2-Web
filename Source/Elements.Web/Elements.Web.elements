@@ -86,9 +86,14 @@
     <Compile Include="WebCompilationDiagnostics.pas" />
     <Compile Include="WebManagement.pas" />
     <Compile Include="WebDiagnostics.pas" />
+    <Compile Include="WebApplication.pas" />
     <Compile Include="EspSessions.pas" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/Logo.png">
+      <LogicalName>RemObjects.Elements.Web.Logo.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
   <ItemGroup Condition="'$(Target)' == 'Cooper'">
     <Reference Include="remobjects.internetpack">
       <Private>True</Private>
