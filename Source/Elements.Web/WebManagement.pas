@@ -35,7 +35,7 @@ type
 
   private
 
-    method HandleManagementRequest(aEvent: not nullable HttpRequestEventArgs): Boolean;
+    method HandleManagementRequest(aEvent: not nullable HttpRequestEventArgs; aFailure: nullable WebRequestError := nil): Boolean;
     begin
       var lPath := aEvent.Request.Path;
       // Public listener liveness only: no publication state, diagnostics or secrets.
@@ -55,8 +55,10 @@ type
         end;
         exit true;
       end;
-      if (not RequireUpdateTrigger and (length(AuthorizationToken) = 0)) or
-         not (lPath in ["/__esp/update", "/__esp/status"]) then
+      var lSource := lPath.StartsWith("/__esp/source/");
+      var lDiagnostics := lPath in ["/__esp/diagnostics", "/__esp/errors"];
+      if not lDiagnostics and not lSource and ((not RequireUpdateTrigger and (length(AuthorizationToken) = 0)) or
+         not (lPath in ["/__esp/update", "/__esp/status"])) then
         exit false;
       result := true;
       aEvent.Response.Header.SetHeaderValue("Cache-Control", "no-store");
@@ -85,6 +87,21 @@ type
         aEvent.Response.ContentString := '{"error":"Method not allowed"}';
         exit;
       end;
+      if lSource then begin
+        var lHtml := RenderDiagnosticSource(lPath.Substring(length("/__esp/source/")));
+        aEvent.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(if assigned(lHtml) then 200 else 404);
+        aEvent.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
+        aEvent.Response.ContentString := if lMethod = "head" then "" else coalesce(lHtml, "Diagnostic page unavailable.");
+        exit;
+      end;
+      if lDiagnostics then begin
+        var lJson := aEvent.Request.QueryString["format"] = "json";
+        aEvent.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(200);
+        if not lJson then
+          aEvent.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
+        aEvent.Response.ContentString := if lMethod = "head" then "" else RenderDiagnosticsPage(lPath = "/__esp/errors", lJson, lToken);
+        exit;
+      end;
       var lArgs := new WebManagementEventArgs(IsUpdate := lUpdate,
         Json := lUpdate or (aEvent.Request.QueryString["format"] = "json"),
         OperationId := aEvent.Request.QueryString["operation"], Since := aEvent.Request.QueryString["since"],
@@ -94,6 +111,7 @@ type
         ManagementRequest(self, lArgs);
       except
         on E: Exception do begin
+          aFailure:CaptureException(E);
           // Do not echo arbitrary host exceptions (or authorization) to clients.
           lArgs.StatusCode := 500;
           lArgs.Json := true;
@@ -101,8 +119,12 @@ type
         end;
       end;
       aEvent.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(lArgs.StatusCode);
-      if not lArgs.Json then
+      if not lArgs.Json then begin
         aEvent.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
+        var lQuery := if (length(AuthorizationToken) > 0) and (length(lToken) > 0) then "?token="+HttpUtility.UrlEncode(lToken) else "";
+        var lLinks := $'<p><a href="/__esp/diagnostics{HtmlLandingPage.EscapeHtml(lQuery)}">Diagnostics</a> · <a href="/__esp/errors{HtmlLandingPage.EscapeHtml(lQuery)}">Request errors</a></p>';
+        lArgs.Body := lArgs.Body:Replace("</body>", lLinks+"</body>");
+      end;
       aEvent.Response.ContentString := if lMethod = "head" then "" else coalesce(lArgs.Body, "{}");
     end;
 

@@ -23,6 +23,25 @@ type
     property Error: nullable String;
     property Units := new List<WebHostUnitStatus>; readonly;
     property Failure: nullable Exception;
+    property Diagnostics := new List<WebCompilerDiagnostic>; readonly;
+
+    method AddDiagnostics(aUnit: nullable String; aDiagnostics: nullable Exception);
+    begin
+      if aDiagnostics is WebCompilationException then begin
+        for each lDiagnostic in (aDiagnostics as WebCompilationException).Diagnostics do
+          Diagnostics.Add(new WebCompilerDiagnostic(UnitName := aUnit, Severity := lDiagnostic.Severity,
+            Code := lDiagnostic.Code, Message := lDiagnostic.Message, FileName := lDiagnostic.FileName,
+            SourceFileName := lDiagnostic.SourceFileName, Line := lDiagnostic.Line, Column := lDiagnostic.Column));
+      end
+      else if assigned(aDiagnostics) then begin
+        AddProjectDiagnostic("Error", aDiagnostics.Message);
+      end;
+    end;
+
+    method AddProjectDiagnostic(aSeverity: nullable String; aMessage: nullable String);
+    begin
+      Diagnostics.Add(new WebCompilerDiagnostic(UnitName := "Project", Severity := aSeverity, Message := aMessage));
+    end;
 
     method AddUnit(aName: nullable String; aState: nullable String; aArtifact: nullable String; aError: nullable String);
     begin
@@ -35,6 +54,7 @@ type
   WebCompilerDiagnostic = public class
   public
 
+    property UnitName: nullable String;
     property Severity: nullable String;
     property Code: nullable String;
     property Message: nullable String;

@@ -85,3 +85,24 @@ The full production website and installed-reference/package replacement paths
 need separate qualification before enabling this mode there. The standalone
 runtime regression suite also needs a coherent EBuild/compiler pair: the older
 EBuild branch lacks newer ASPX generation fixes used by some current tests.
+
+## Diagnostics and request history
+
+`diagnostics.py` uses the same three command-line arguments as `run.py`. It
+checks successful-build warnings, current compilation errors, correction and
+request history in both lazy and full compilation modes. It does not change
+validation timing or last-good behavior.
+
+`/__esp/diagnostics` and `/__esp/errors` return HTML by default; append
+`?format=json` for JSON. Both accept GET and HEAD, independently of debug mode
+and publication mode. When `ESPAuthorizationToken` is set, use
+`Authorization: Bearer <token>` or the `token` query parameter. Source links
+remain debug-only and require the same token when configured.
+
+Diagnostics represent the latest attempted build for each existing unit and
+project preparation. Unattempted changes do not initiate builds through these
+pages. Request history retains the latest 1,000 exceptions/HTTP 500–599 failures
+in memory, newest first, and resets on restart. Query strings, request bodies,
+cookies and authorization headers are not collected. A custom error page does
+not suppress the original failure; JSON includes both `status` and
+`responseStatus`.

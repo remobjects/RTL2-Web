@@ -27,20 +27,27 @@ type
         lFactory := fPageFactory;
         lFactory:Acquire;
       end;
+      var lFailure := new WebRequestError;
+      locking fDiagnosticMonitor do
+        lFailure.Generation := coalesce(fHostStatus:ActiveGeneration, 0);
       try
-        HandleEspRequestWithFactory(aSender, aEventArgs, lFactory);
+        HandleEspRequestWithFactory(aSender, aEventArgs, lFactory, nil, nil, 0, lFailure);
       finally
-        lFactory:Release;
+        try
+          RecordRequestError(aEventArgs, lFactory, lFailure);
+        finally
+          lFactory:Release;
+        end;
       end;
     end;
 
     method HandleEspRequestWithFactory(aSender: Object; aEventArgs: HttpRequestEventArgs; aFactory: nullable WebPageFactory;
                                       aErrorPath: nullable String := nil; aErrorQuery: nullable String := nil;
-                                      aErrorCode: Integer := 0); private;
+                                      aErrorCode: Integer := 0; aFailure: nullable WebRequestError := nil); private;
     begin
       try
         var lRequestPath := coalesce(aErrorPath, aEventArgs.Request.Path);
-        if not assigned(aErrorPath) and HandleManagementRequest(aEventArgs) then
+        if not assigned(aErrorPath) and HandleManagementRequest(aEventArgs, aFailure) then
           exit;
         if ((lRequestPath = "/__esp/status") and not RequireUpdateTrigger) or lRequestPath.StartsWith("/__esp/source/") then begin
           var lSourceHtml: nullable String;
@@ -73,6 +80,8 @@ type
             exit;
           var lFailure := HostFailure;
           var lCode := if assigned(lFailure) then 500 else 503;
+          if assigned(lFailure) then
+            aFailure:CaptureException(lFailure);
           aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(lCode);
           aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
           aEventArgs.Response.Header.SetHeaderValue("Cache-Control", "no-store");
@@ -244,7 +253,7 @@ type
         end;
 
         if not assigned(aErrorPath) and (Integer(aEventArgs.Response.HttpCode) >= 400) then
-          RunError(aEventArgs, Integer(aEventArgs.Response.HttpCode), aFactory);
+          RunError(aEventArgs, Integer(aEventArgs.Response.HttpCode), aFactory, aFailure);
 
       except
         on E: Exception do begin
@@ -258,15 +267,11 @@ type
               end;
             end;
           end;
-          locking fDiagnosticMonitor do begin
-            while fRecentErrors.Count ≥ 20 do
-              fRecentErrors.Dequeue;
-            fRecentErrors.Enqueue(aEventArgs.Request.Path+": "+E.Message);
-          end;
+          aFailure:CaptureException(E);
           Log($"Unhandled ESP request exception for '{aEventArgs.Request.Path}': {E}");
           if not assigned(aErrorPath) and not DebugMode then begin
             try
-              if RunError(aEventArgs, 500, aFactory) then
+              if RunError(aEventArgs, 500, aFactory, aFailure) then
                 exit;
             except
               on lHandlerException: Exception do
@@ -310,6 +315,12 @@ type
 
     method RunError(e: HttpRequestEventArgs; aCode: Integer; aFactory: nullable WebPageFactory): Boolean;
     begin
+      result := RunError(e, aCode, aFactory, nil);
+    end;
+
+    method RunError(e: HttpRequestEventArgs; aCode: Integer; aFactory: nullable WebPageFactory; aFailure: nullable WebRequestError): Boolean; private;
+    begin
+      aFailure:CaptureStatus(aCode);
       if (aCode = 500) and DebugMode then
         exit false;
       var lRule := aFactory:FindErrorPage(aCode);
@@ -346,7 +357,7 @@ type
       e.Response.ContentStream := new MemoryStream;
       e.Response.Header := new HttpHeaders;
       e.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(aCode);
-      HandleEspRequestWithFactory(self, e, aFactory, lPath, lQuery, aCode);
+      HandleEspRequestWithFactory(self, e, aFactory, lPath, lQuery, aCode, aFailure);
       result := true;
     end;
 
@@ -483,7 +494,7 @@ type
       locking fDiagnosticMonitor do begin
         lStatus := fHostStatus;
         for each lError in fRecentErrors do
-          lErrors.Append($"<li>{HtmlLandingPage.EscapeHtml(lError)}</li>");
+          lErrors.Append($"<li>{HtmlLandingPage.EscapeHtml(lError.Path+": "+lError.Message)}</li>");
       end;
       var lRows := new StringBuilder;
       if assigned(lStatus) then
@@ -505,10 +516,10 @@ type
           li { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 0.5rem; }
         </style>
         <h1>ESP Status</h1>
+        <nav><a href="/__esp/status">Refresh status</a> · <a href="/__esp/diagnostics">Diagnostics</a> · <a href="/__esp/errors">Request errors</a> · ESPDebugMode enabled</nav>
         <p>{{HtmlLandingPage.EscapeHtml(coalesce(lStatus:Summary, "This server has not supplied compilation status."))}}</p>
         <p>Active generation: <strong>{{lStatus:ActiveGeneration}}</strong> · Latest attempt: <strong>{{lStatus:Generation}}</strong></p>
         <p>Retained generations: {{HtmlLandingPage.EscapeHtml(lStatus:RetainedGenerations)}}</p>
-        <p><a href="/__esp/status">Refresh status</a> · ESPDebugMode enabled</p>
         <p class="build-error">{{HtmlLandingPage.EscapeHtml(lStatus:Error)}}</p>
         {{lCompilerErrors}}
         <div class="table-scroll"><table><thead><tr><th>Unit</th><th>State</th><th>Artifact</th><th>Error</th></tr></thead><tbody>{{lRows}}</tbody></table></div>
@@ -534,7 +545,8 @@ type
     fDiagnosticSourceOrder := new Queue<String>;
     fHostStatus: nullable WebHostStatus;
     fHostFailure: nullable Exception;
-    fRecentErrors := new Queue<String>;
+    fRecentErrors := new Queue<WebRequestError>;
+    fRequestErrorSequence: Int64;
 
     method SetHostStatus(aValue: nullable WebHostStatus);
     begin

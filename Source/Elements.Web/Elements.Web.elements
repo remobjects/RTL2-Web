@@ -85,6 +85,7 @@
     <Compile Include="Exceptions.pas" />
     <Compile Include="WebCompilationDiagnostics.pas" />
     <Compile Include="WebManagement.pas" />
+    <Compile Include="WebDiagnostics.pas" />
     <Compile Include="EspSessions.pas" />
   </ItemGroup>
   <ItemGroup />
