@@ -18,9 +18,19 @@ application unit. `Import` directives and `Inherits` (with optional `CodeFile` o
 served as a static file. Editing `Global.asax` rebuilds the application unit and
 its dependent pages, following the existing publication settings.
 
-This feature wires `Application_Error` only. Other lifecycle methods such as
-`Application_Start`, `Application_End` and `Session_Start` may compile but are
-not invoked by this implementation.
+ESP also invokes `Application_Start`, `Application_End`, `Session_Start` and
+`Session_End` when those methods have the `(Object, EventArgs)` signature.
+`Application_Start` runs once before the first dispatched site request in an
+application lifetime. `Session_Start` runs when that request first accesses a
+new session, before the session is returned to page code. `Session_End` runs
+when a session is abandoned, found expired, explicitly swept, or the
+application lifetime ends. There is no background expiry timer, so an idle
+session does not raise `Session_End` at its exact timeout. `Application_End`
+runs after the last request of a retired application generation, after its
+sessions have ended. The same application instance handles these events and
+`Application_Error`, so instance state set by `Application_Start` remains
+available to later handlers. `Session_End` can read the ending `Session`;
+neither end event has a live `Request` or `Response`.
 
 Alternatively, put one public, concrete `WebApplication` subclass in
 `App_Code/Global.pas` (the class name is arbitrary). It must have a public
@@ -62,8 +72,8 @@ end;
 `System.Web.HttpApplication` is an alias for `WebApplication`. Protected/private
 inherited handlers are supported. If both signatures exist, only the typed
 signature runs, even if it is inherited. Methods must return void and be
-non-generic instance methods. Each notification uses a fresh application
-instance; do not keep application-wide state in its instance fields.
+non-generic instance methods. The application lifetime retains one instance;
+event callbacks on that instance are serialized.
 
 `WebErrorContext` contains:
 

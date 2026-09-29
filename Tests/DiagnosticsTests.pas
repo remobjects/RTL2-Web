@@ -8,6 +8,41 @@ type
   DiagnosticsTests = public class(Test)
   public
 
+    method NullBytePathsReturnSilent404;
+    begin
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lServer := new WebServer(PageFactory := new Redirect404TestFactory);
+      lServer.Start(lPort);
+      try
+        using lHandler := new System.Net.Http.HttpClientHandler(AllowAutoRedirect := false) do
+        using lClient := new System.Net.Http.HttpClient(lHandler) do begin
+          lClient.BaseAddress := new System.Uri($"http://127.0.0.1:{lPort}");
+          for each lStarting in [false, true] do begin
+            if lStarting then begin
+              lServer.PageFactory := nil;
+              lServer.RequireUpdateTrigger := true;
+            end;
+            for each lPath in ["/.env.development%00", "/%00/file.txt", "/__esp/source/%00"] do
+              for each lMethod in [System.Net.Http.HttpMethod.Get, System.Net.Http.HttpMethod.Head] do
+                using lRequest := new System.Net.Http.HttpRequestMessage(lMethod, lPath) do
+                  using lResponse := lClient.SendAsync(lRequest).GetAwaiter.GetResult do begin
+                    Assert.AreEqual(Integer(lResponse.StatusCode), 404);
+                    Assert.IsFalse(assigned(lResponse.Headers.Location));
+                    Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult,
+                      if lMethod = System.Net.Http.HttpMethod.Head then "" else "Not Found");
+                  end;
+          end;
+          var lJson := JsonObject.FromString(lClient.GetStringAsync("/__esp/errors?format=json").GetAwaiter.GetResult);
+          Assert.AreEqual((lJson["errors"] as JsonArray).Count, 0);
+        end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
     method StatusFormatDoesNotDependOnPublicationOrAuthentication;
     begin
       var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
@@ -71,6 +106,95 @@ type
       end;
     end;
 
+    method StaticErrorFilesWorkBeforeCompilationAndForNormalErrors;
+    begin
+      var lRoot := Path.Combine(System.IO.Path.GetTempPath, "esp-static-errors-"+Guid.NewGuid.ToString);
+      Folder.Create(lRoot);
+      var lConfig := Path.Combine(lRoot, "Web.config");
+      var lHtml := "<html>We'll be right back.</html>";
+      File.WriteText(Path.Combine(lRoot, "503.html"), lHtml);
+      var lXml := '<configuration><system.webServer><httpErrors errorMode="Custom"><error statusCode="503" path="/503.html" responseMode="File"/></httpErrors></system.webServer></configuration>';
+      File.WriteText(lConfig, lXml);
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lServer := new WebServer(HostStarting := true, PhysicalRootFolder := lRoot);
+      lServer.LoadStaticErrorPages(lRoot);
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Http.HttpClient do begin
+          lClient.BaseAddress := new System.Uri($"http://127.0.0.1:{lPort}");
+          for each lTrigger in [false, true] do begin
+            lServer.RequireUpdateTrigger := lTrigger;
+            for each lMethod in [System.Net.Http.HttpMethod.Get, System.Net.Http.HttpMethod.Head] do
+              using lRequest := new System.Net.Http.HttpRequestMessage(lMethod, "/not-built") do
+                using lResponse := lClient.SendAsync(lRequest).GetAwaiter.GetResult do begin
+                  Assert.AreEqual(Integer(lResponse.StatusCode), 503);
+                  Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, if lMethod = System.Net.Http.HttpMethod.Head then "" else lHtml);
+                  Assert.AreEqual(lResponse.Content.Headers.ContentType.MediaType, "text/html");
+                  Assert.IsTrue(lResponse.Headers.CacheControl.NoStore);
+                end;
+          end;
+          // Cached startup contents do not change while publication is being restored.
+          File.WriteText(Path.Combine(lRoot, "503.html"), "unaccepted replacement");
+          using lResponse := lClient.GetAsync("/not-built").GetAwaiter.GetResult do
+            Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, lHtml);
+          File.WriteText(Path.Combine(lRoot, "503.html"), lHtml);
+          using lResponse := lClient.GetAsync("/__esp/health").GetAwaiter.GetResult do
+            Assert.AreEqual(Integer(lResponse.StatusCode), 200);
+          for each lRules in [
+            '<clear/>', '<remove statusCode="503"/>',
+            '<error statusCode="503" path="/dynamic.aspx" responseMode="ExecuteURL"/>',
+            '<error statusCode="503" path="/other" responseMode="Redirect"/>'] do begin
+            File.WriteText(lConfig, lXml.Replace('</httpErrors>', lRules+'</httpErrors>'));
+            lServer.LoadStaticErrorPages(lRoot);
+            using lResponse := lClient.GetAsync("/not-built").GetAwaiter.GetResult do begin
+              Assert.AreEqual(Integer(lResponse.StatusCode), 503);
+              Assert.IsFalse(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult.Contains(lHtml));
+            end;
+          end;
+          for each lConfigText in [lXml.Replace('errorMode="Custom"', 'errorMode="Detailed"'), '<configuration>'] do begin
+            File.WriteText(lConfig, lConfigText);
+            lServer.LoadStaticErrorPages(lRoot);
+            using lResponse := lClient.GetAsync("/not-built").GetAwaiter.GetResult do
+              Assert.IsFalse(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult.Contains(lHtml));
+          end;
+          File.WriteText(lConfig, lXml);
+          lServer.LoadStaticErrorPages(lRoot);
+          lServer.RequireUpdateTrigger := false;
+          lServer.HostStarting := false;
+          var lFactory := new StaticErrorTestFactory(Root := lRoot, ErrorFile := "/503.html");
+          lServer.PageFactory := lFactory;
+          for each lCode in [404, 500, 503] do
+            for each lMethod in [System.Net.Http.HttpMethod.Get, System.Net.Http.HttpMethod.Head] do
+              using lRequest := new System.Net.Http.HttpRequestMessage(lMethod, $"/status?code={lCode}") do
+                using lResponse := lClient.SendAsync(lRequest).GetAwaiter.GetResult do begin
+                  Assert.AreEqual(Integer(lResponse.StatusCode), lCode);
+                  Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, if lMethod = System.Net.Http.HttpMethod.Head then "" else lHtml);
+                  Assert.IsTrue(lResponse.Headers.CacheControl.NoStore);
+                end;
+          Folder.Create(Path.Combine(lRoot, "App_Private"));
+          File.WriteText(Path.Combine(lRoot, "App_Private/secret.html"), "private-content");
+          File.WriteText(Path.Combine(lRoot, "source.aspx"), "private-content");
+          System.IO.File.CreateSymbolicLink(Path.Combine(lRoot, "linked.html"), Path.Combine(lRoot, "App_Private/secret.html"));
+          System.IO.Directory.CreateSymbolicLink(Path.Combine(lRoot, "linked-folder"), Path.Combine(lRoot, "App_Private"));
+          for each lPath in ["/missing.html", "/../503.html", "/%2e%2e/503.html", "/App_Private/secret.html", "/source.aspx", "/Web.config", "/linked.html", "/linked-folder/secret.html", "https://example.com/503.html"] do begin
+            lFactory.ErrorFile := lPath;
+            using lResponse := lClient.GetAsync("/status?code=503").GetAwaiter.GetResult do begin
+              var lBody := lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+              Assert.AreEqual(Integer(lResponse.StatusCode), 503, lPath);
+              Assert.IsTrue(lBody.Contains("The configured error page could not be found."), lPath);
+              Assert.IsFalse(lBody.Contains("private-content"), lPath);
+            end;
+          end;
+        end;
+      finally
+        lServer.Stop;
+        System.IO.Directory.Delete(lRoot, true);
+      end;
+    end;
+
     method ConfiguredErrorPagesHandleEveryErrorStatusInBothDebugModes;
     begin
       var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
@@ -124,7 +248,12 @@ type
         using lClient := new System.Net.Http.HttpClient do begin
           lClient.BaseAddress := new System.Uri($"http://127.0.0.1:{lPort}");
           for each lLegacy in [false, true] do begin
-            lFactory.Legacy := lLegacy;
+            if lLegacy then begin
+              lFactory := new NotificationTestFactory(Legacy := true);
+              var lNext := new WebCompositePageFactory(new WebApplicationLifetime);
+              lNext.AddFactory(lFactory);
+              lServer.PageFactory := lNext;
+            end;
             NotificationApplication.Errors.Clear;
             LegacyNotificationApplication.Calls := 0;
             using lResponse := lClient.GetAsync("/throw?original=yes").GetAwaiter.GetResult do begin
@@ -144,7 +273,10 @@ type
               Assert.AreEqual(Integer(lResponse.StatusCode), 500);
             Assert.AreEqual(NotificationApplication.Errors.Count, 1);
           end;
-          lFactory.Legacy := false;
+          lFactory := new NotificationTestFactory;
+          var lTyped := new WebCompositePageFactory(new WebApplicationLifetime);
+          lTyped.AddFactory(lFactory);
+          lServer.PageFactory := lTyped;
           using lResponse := lClient.GetAsync("/compile?compiler=yes").GetAwaiter.GetResult do
             Assert.AreEqual(Integer(lResponse.StatusCode), 500);
           var lCompiler := NotificationApplication.Errors["compiler=yes"];
@@ -355,9 +487,22 @@ type
           lServer.PageFactory := nil;
           using lResponse := lClient.GetAsync("/unpublished").GetAwaiter.GetResult do
             Assert.AreEqual(Integer(lResponse.StatusCode), 503);
+          lServer.RequireUpdateTrigger := false;
+          lServer.HostStarting := true;
+          using lResponse := lClient.GetAsync("/building").GetAwaiter.GetResult do
+            Assert.AreEqual(Integer(lResponse.StatusCode), 503);
+          lServer.HostFailure := new Exception("Build failed");
+          using lResponse := lClient.GetAsync("/build-failed").GetAwaiter.GetResult do
+            Assert.AreEqual(Integer(lResponse.StatusCode), 500);
           lJson := JsonObject.FromString(lClient.GetStringAsync("/__esp/errors?format=json").GetAwaiter.GetResult);
           var lErrors := lJson["errors"] as JsonArray;
-          Assert.AreEqual(lErrors.Count, 5, "Each failed request must be logged exactly once.");
+          Assert.AreEqual(lErrors.Count, 7, "Each failed request must be logged exactly once.");
+          for each lPath in ["/unpublished", "/building"] do
+            Assert.AreEqual(lErrors.FirstOrDefault(e -> e["path"]:StringValue = lPath)["message"].StringValue,
+              "Requested before site was ready");
+          Assert.AreEqual(lErrors.FirstOrDefault(e -> e["path"]:StringValue = "/explicit")["message"].StringValue, "HTTP 503");
+          Assert.AreEqual(lErrors.FirstOrDefault(e -> e["path"]:StringValue = "/build-failed")["message"].StringValue, "Build failed");
+          Assert.IsTrue(lClient.GetStringAsync("/__esp/errors").GetAwaiter.GetResult.Contains("Requested before site was ready"));
           Assert.IsFalse(lJson.ToJsonString.Contains("do-not-log"));
           Assert.IsTrue(lJson.ToJsonString.Contains("test exception"));
           Assert.IsTrue(lJson.ToJsonString.Contains("Compilation failed"));
@@ -465,6 +610,20 @@ type
     begin
       if (aCode ≥ 400) and (aCode ≤ 599) then
         result := new WebErrorPage("/custom", false, true, false);
+    end;
+
+  end;
+
+  StaticErrorTestFactory = class(ErrorPageTestFactory)
+  public
+
+    property Root: nullable String;
+    property ErrorFile: not nullable String := "/503.html";
+    property PhysicalRootFolder: nullable String read Root; override;
+
+    method FindErrorPage(aCode: Integer): nullable WebErrorPage; override;
+    begin
+      result := new WebErrorPage(ErrorFile, false, false, false, true);
     end;
 
   end;

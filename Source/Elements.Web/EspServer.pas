@@ -13,6 +13,7 @@ type
     method Start(aPort: Integer := 8001);
     begin
       fServer := new HttpServer();
+      fServer.ServerName := "RemObjectts Elements ESP HTTP Server";
       fServer.Port := aPort;
       fServer.KeepAlive := true;
       fServer.CloseConnectionsOnShutdown := true;
@@ -48,6 +49,13 @@ type
       var lRequestPath := coalesce(aErrorPath, aEventArgs.Request.Path);
       var lContext: nullable WebContext;
       try
+        // Reject null bytes before routing or filesystem access, without invoking site error handlers.
+        if HttpUtility.UrlDecode(lRequestPath).Contains(#0) then begin
+          aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.NotFound;
+          aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/plain; charset=utf-8");
+          aEventArgs.Response.ContentString := if caseInsensitive(aEventArgs.Request.Header.RequestType) = "head" then "" else "Not Found";
+          exit;
+        end;
         {$IF ECHOES}
         if (lRequestPath = "/__esp/logo.png") and (caseInsensitive(aEventArgs.Request.Header.RequestType) in ["get", "head"]) then begin
           var lLogo := (typeOf(WebServer) as System.Type).Assembly.GetManifestResourceStream("RemObjects.Elements.Web.Logo.png");
@@ -81,6 +89,9 @@ type
           exit;
         end;
         if RequireUpdateTrigger and not assigned(aFactory) then begin
+          aFailure:Message := "Requested before site was ready";
+          if TryServeStartupError(aEventArgs, 503) then
+            exit;
           aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.ServiceUnavailable;
           aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
           aEventArgs.Response.Header.SetHeaderValue("Cache-Control", "no-store");
@@ -95,7 +106,11 @@ type
           var lFailure := HostFailure;
           var lCode := if assigned(lFailure) then 500 else 503;
           if assigned(lFailure) then
-            aFailure:CaptureException(lFailure);
+            aFailure:CaptureException(lFailure)
+          else
+            aFailure:Message := "Requested before site was ready";
+          if TryServeStartupError(aEventArgs, lCode) then
+            exit;
           aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(lCode);
           aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
           aEventArgs.Response.Header.SetHeaderValue("Cache-Control", "no-store");
@@ -128,6 +143,7 @@ type
           var lObject: nullable Object;
           WebContext.Current := lContext;
           try
+            lContext.Lifetime.EnsureStarted(aFactory, lContext);
             lObject := aFactory:DoFindClassForPath(lRequestPath);
           finally
             WebContext.Current := lPreviousContext;
@@ -345,6 +361,21 @@ type
       var lOriginal := CreateRequestContext(e, e.Request.Path, e.Request.QueryString.ToString, aFactory);
       if lRule.RemoteOnly and (lOriginal.Request.ServerVariables["REMOTE_ADDR"] in ["127.0.0.1", "::1"]) then
         exit false;
+      if lRule.StaticFile then begin
+        var lContent := ReadStaticErrorFile(lRule.Path, coalesce(aFactory:PhysicalRootFolder, PhysicalRootFolder),
+          coalesce(aFactory:PhysicalBinFolder, PhysicalBinFolder));
+        if assigned(lContent) then
+          ServeStaticError(e, aCode, lContent)
+        else begin
+          e.Response.Header := new HttpHeaders;
+          e.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(aCode);
+          e.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
+          e.Response.Header.SetHeaderValue("Cache-Control", "no-store");
+          e.Response.ContentString := if caseInsensitive(e.Request.Header.RequestType) = "head" then ""
+            else RenderErrorPage(aCode, "Request Failed", e.Request.Path, "The configured error page could not be found.");
+        end;
+        exit true;
+      end;
       var lPath := lRule.Path;
       if lPath.StartsWith("~/") then
         lPath := lPath.Substring(1);
@@ -374,6 +405,122 @@ type
       HandleEspRequestWithFactory(self, e, aFactory, lPath, lQuery, aCode, aFailure);
       result := true;
     end;
+
+    // Called by the host before compilation, using only an accepted publication in trigger mode.
+    method LoadStaticErrorPages(aRoot: not nullable String);
+    begin
+      var lPages := new Dictionary<Integer, WebStaticErrorContent>;
+      try
+        var lConfig := Path.Combine(aRoot, "Web.config");
+        if lConfig.FileExists then begin
+          var lRules := new Dictionary<Integer, String>;
+          var lXml := XmlDocument.FromFile(lConfig);
+          var lBinFolder := PhysicalBinFolder;
+          if length(lBinFolder) = 0 then
+            for each lSection in lXml.Root.ElementsWithName("esp.projectSettings") do
+              for each lSetting in lSection.Elements do
+                if caseInsensitive(lSetting.LocalName) = "BinFolder" then begin
+                  lBinFolder := lSetting.Value:ToPlatformPathFromWindowsPath;
+                  if (length(lBinFolder) > 0) and not lBinFolder.IsAbsolutePath then
+                    lBinFolder := Path.Combine(aRoot, lBinFolder);
+                end;
+          for each w in lXml.Root.ElementsWithName("system.webServer") do
+            for each c in w.ElementsWithName("httpErrors") do begin
+              if caseInsensitive(c.Attribute["errorMode"]:Value) = "Detailed" then
+                continue;
+              for each e in c.Elements do begin
+                if e.LocalName = "clear" then begin
+                  lRules.RemoveAll;
+                  continue;
+                end;
+                var lCode := Convert.TryToInt32(e.Attribute["statusCode"]:Value);
+                if not assigned(lCode) then
+                  continue;
+                if e.LocalName = "remove" then
+                  lRules[lCode] := nil
+                else if e.LocalName = "error" then begin
+                  var lMode := e.Attribute["responseMode"]:Value;
+                  if caseInsensitive(lMode) = "File" then
+                    lRules[lCode] := e.Attribute["path"]:Value
+                  else if caseInsensitive(lMode) in ["ExecuteURL", "Redirect"] then
+                    lRules[lCode] := nil;
+                end;
+              end;
+            end;
+          for each lCode in lRules.Keys do
+            lPages[lCode] := ReadStaticErrorFile(lRules[lCode], aRoot, lBinFolder);
+        end;
+      except
+        on E: Exception do
+          Log("Could not load static ESP error pages: "+E.Message);
+      end;
+      // Publish complete, immutable contents; requests never parse config or retain a retired root.
+      locking fStaticErrorMonitor do
+        fStartupErrorPages := lPages;
+    end;
+
+    method TryServeStartupError(aEvent: not nullable HttpRequestEventArgs; aCode: Integer): Boolean; private;
+    begin
+      var lContent: nullable WebStaticErrorContent;
+      locking fStaticErrorMonitor do
+        lContent := fStartupErrorPages[aCode];
+      if not assigned(lContent) then
+        exit;
+      ServeStaticError(aEvent, aCode, lContent);
+      result := true;
+    end;
+
+    method ReadStaticErrorFile(aPath: not nullable String; aRoot: nullable String; aBinFolder: nullable String): nullable WebStaticErrorContent; private;
+    begin
+      try
+        aPath := HttpUtility.UrlDecode(aPath).Replace("\", "/");
+        if aPath.StartsWith("~/") then
+          aPath := aPath.Substring(1);
+        if aPath.Contains(":") or aPath.Contains("?") or aPath.Contains("#") or aPath.StartsWith("//") or aPath.StartsWith("/__esp/") then
+          exit;
+        var lFileName := ResolvePublicStaticFile(aPath, aRoot, aBinFolder);
+        if not assigned(lFileName) then
+          exit;
+        {$IF ECHOES}
+        // Reject links at every component, including directories, before reading file contents.
+        var lCheck := Path.GetFullPath(lFileName);
+        var lRoot := Path.GetFullPath(aRoot as not nullable).TrimEnd(Path.DirectorySeparatorChar);
+        if not IsFileInFolder(lCheck, lRoot) then
+          exit;
+        loop begin
+          if (System.IO.File.GetAttributes(lCheck) and System.IO.FileAttributes.ReparsePoint) ≠ 0 then
+            exit;
+          if lCheck = lRoot then
+            break;
+          var lParent := Path.GetParentDirectory(lCheck);
+          if (length(lParent) = 0) or (lParent = lCheck) then
+            exit;
+          lCheck := lParent;
+        end;
+        {$ELSE}
+        // Fail closed on backends without a link-safe filesystem implementation.
+        exit;
+        {$ENDIF}
+        result := new WebStaticErrorContent(File.ReadBytes(lFileName), ContentTypeForFileName(lFileName));
+      except
+        on E: Exception do begin
+          // Missing or unreadable placeholders must not replace the original failure.
+        end;
+      end;
+    end;
+
+    method ServeStaticError(aEvent: not nullable HttpRequestEventArgs; aCode: Integer; aContent: not nullable WebStaticErrorContent); private;
+    begin
+      aEvent.Response.Header := new HttpHeaders;
+      aEvent.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(aCode);
+      aEvent.Response.Header.SetHeaderValue("Content-Type", aContent.ContentType);
+      aEvent.Response.Header.SetHeaderValue("Cache-Control", "no-store");
+      aEvent.Response.Header.SetHeaderValue("X-Content-Type-Options", "nosniff");
+      aEvent.Response.ContentStream := if caseInsensitive(aEvent.Request.Header.RequestType) = "head" then new MemoryStream else new MemoryStream(aContent.Body);
+    end;
+
+    field fStaticErrorMonitor: Monitor := new Monitor; private;
+    field fStartupErrorPages := new Dictionary<Integer, WebStaticErrorContent>; private;
 
     method RenderException(aException: Exception): String;
     begin
@@ -418,6 +565,7 @@ type
     method Stop;
     begin
       fServer.Close();
+      PageFactory := nil;
     end;
 
     method OpenFile(aVirtualPath: not nullable String; aFactory: nullable WebPageFactory := nil): nullable Stream; assembly;
@@ -939,12 +1087,22 @@ type
 
     method TryServeStaticFile(aRequestPath: not nullable String; aEventArgs: not nullable HttpRequestEventArgs; aFactory: nullable WebPageFactory): Boolean;
     begin
-      var lRoot := coalesce(aFactory:PhysicalRootFolder, PhysicalRootFolder);
-      if length(lRoot) = 0 then
+      var lFileName := ResolvePublicStaticFile(aRequestPath, coalesce(aFactory:PhysicalRootFolder, PhysicalRootFolder),
+        coalesce(aFactory:PhysicalBinFolder, PhysicalBinFolder));
+      if not assigned(lFileName) then
+        exit;
+      aEventArgs.Response.Header.SetHeaderValue("Content-Type", ContentTypeForFileName(lFileName));
+      aEventArgs.Response.ContentStream := LeaseFile(lFileName, aFactory);
+      result := true;
+    end;
+
+    method ResolvePublicStaticFile(aRequestPath: not nullable String; aRoot: nullable String; aBinFolder: nullable String): nullable String;
+    begin
+      if length(aRoot) = 0 then
         exit;
 
       var lParts := HttpUtility.UrlDecode(aRequestPath).Replace("\", "/").Split("/");
-      var lFileName := lRoot as not nullable;
+      var lFileName := aRoot as not nullable;
       var lFirstPart: nullable String;
       for each lPart in lParts do begin
         if length(lPart) = 0 then
@@ -958,22 +1116,20 @@ type
 
       if caseInsensitive(lFirstPart) in ["bin", "app_code", "app_private", "app_data", ".esp"] then
         exit;
-      if IsFileInFolder(lFileName, coalesce(aFactory:PhysicalBinFolder, PhysicalBinFolder)) then
+      if IsFileInFolder(lFileName, aBinFolder) then
         exit;
       if caseInsensitive(lFileName.LastPathComponent) = "web.config" then
         exit;
       if caseInsensitive(lFileName.PathExtension) in [".aspx", ".ascx", ".master", ".ashx", ".asmx", ".asax", ".pas", ".cs", ".swift", ".java", ".vb", ".go"] then
         exit;
       if not lFileName.FileExists then begin
-        var lResolved := ResolveStaticFile(aRequestPath, lRoot);
+        var lResolved := ResolveStaticFile(aRequestPath, aRoot);
         if not assigned(lResolved) then
           exit;
         lFileName := lResolved as not nullable;
       end;
 
-      aEventArgs.Response.Header.SetHeaderValue("Content-Type", ContentTypeForFileName(lFileName));
-      aEventArgs.Response.ContentStream := LeaseFile(lFileName, aFactory);
-      result := true;
+      result := lFileName;
     end;
 
     method ResolveStaticFile(aRequestPath: not nullable String; aRoot: nullable String): nullable String;
@@ -1181,6 +1337,20 @@ type
 
   end;
 
+  WebStaticErrorContent = assembly class
+  public
+
+    constructor(aBody: array of Byte; aContentType: not nullable String);
+    begin
+      Body := aBody;
+      ContentType := aContentType;
+    end;
+
+    property Body: array of Byte; readonly;
+    property ContentType: not nullable String; readonly;
+
+  end;
+
   WebErrorPage = public class
   public
 
@@ -1192,6 +1362,16 @@ type
       RemoteOnly := aRemoteOnly;
     end;
 
+    constructor(aPath: not nullable String; aRedirect: Boolean; aIisQuery: Boolean; aRemoteOnly: Boolean; aStaticFile: Boolean);
+    begin
+      Path := aPath;
+      Redirect := aRedirect;
+      IisQuery := aIisQuery;
+      RemoteOnly := aRemoteOnly;
+      StaticFile := aStaticFile;
+    end;
+
+    property StaticFile: Boolean; readonly;
     property Path: not nullable String; readonly;
     property Redirect: Boolean; readonly;
     property IisQuery: Boolean; readonly;
@@ -1204,11 +1384,41 @@ type
     property PhysicalRootFolder: nullable String read nil; virtual;
     property PhysicalBinFolder: nullable String read nil; virtual;
     property PublicationRevision: nullable String read nil; virtual;
-    property Lifetime: not nullable WebApplicationLifetime read WebApplicationLifetime.Default; virtual;
-    method Acquire; virtual; empty;
+    property Lifetime: not nullable WebApplicationLifetime read fLifetime; virtual;
+    method Acquire; virtual;
+    begin
+      locking fLifecycleMonitor do begin
+        if fRetired and (fRequests = 0) then
+          raise new InvalidOperationException("Cannot acquire a retired ESP factory.");
+        inc(fRequests);
+      end;
+    end;
     method Seal; virtual; empty;
-    method Release; virtual; empty;
-    method Retire; virtual; empty;
+    method Release; virtual;
+    begin
+      var lEnd := false;
+      locking fLifecycleMonitor do begin
+        if fRequests = 0 then
+          raise new InvalidOperationException("ESP factory has no active request to release.");
+        dec(fRequests);
+        lEnd := fRetired and (fRequests = 0);
+      end;
+      if lEnd then
+        fLifetime.EndApplication;
+    end;
+
+    method Retire; virtual;
+    begin
+      var lEnd := false;
+      locking fLifecycleMonitor do begin
+        if fRetired then
+          exit;
+        fRetired := true;
+        lEnd := fRequests = 0;
+      end;
+      if lEnd then
+        fLifetime.EndApplication;
+    end;
 
     method OpenResource(aPath: not nullable String; aPublicOnly: Boolean): nullable Stream; virtual;
     begin
@@ -1263,6 +1473,11 @@ type
                          FindClassForPath(aPath));
     end;
   private
+
+    fLifetime := new WebApplicationLifetime;
+    fLifecycleMonitor := new Monitor;
+    fRequests: Integer;
+    fRetired: Boolean;
 
     {$IF ECHOES}
     fApplicationType: nullable System.Type;
@@ -1343,6 +1558,8 @@ type
     constructor(aLifetime: not nullable WebApplicationLifetime);
     begin
       fLifetime := aLifetime;
+      fLifetime.Retain;
+      Retired += ReleaseLifetime;
     end;
 
     method AddFactory(aFactory: not nullable WebPageFactory);
@@ -1475,6 +1692,11 @@ type
     fRequests: Integer;
     fRetired: Boolean;
     fPublished: Boolean;
+
+    method ReleaseLifetime(aSender: Object; aArgs: EventArgs);
+    begin
+      fLifetime.Release;
+    end;
 
     method CheckFailure(aPath: not nullable String);
     begin

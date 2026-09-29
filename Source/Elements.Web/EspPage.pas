@@ -314,8 +314,12 @@ type
 
     method GetSession: WebSessionState;
     begin
-      if not assigned(fSession) then
-        fSession := Lifetime.Sessions.FindOrCreateSession(self);
+      if not assigned(fSession) then begin
+        var lCreated: Boolean;
+        fSession := Lifetime.Sessions.FindOrCreateSession(self, out lCreated);
+        if lCreated then
+          Lifetime.NotifySessionStart(self);
+      end;
       result := fSession;
     end;
 
@@ -401,11 +405,163 @@ type
   public
 
     class property Default: not nullable WebApplicationLifetime := new WebApplicationLifetime; readonly;
+    class property Current: nullable WebApplicationLifetime read fCurrent write fCurrent; assembly;
+
+    constructor;
+    begin
+      Sessions.Owner := self;
+    end;
+
+    method EnsureStarted(aFactory: nullable WebPageFactory; aContext: not nullable WebContext);
+    begin
+      locking fApplicationMonitor do begin
+        if assigned(fStartFailure) then
+          raise fStartFailure;
+        if fStarted or fEnded then
+          exit;
+        fStarted := true;
+        try
+          fApplication := aFactory:CreateApplication;
+          if assigned(fApplication) then begin
+            var lPreviousLifetime := Current;
+            Current := self;
+            fApplication.Context := aContext;
+            try
+              fApplication.OnStart;
+            finally
+              fApplication.Context := nil;
+              Current := lPreviousLifetime;
+            end;
+          end;
+        except
+          on E: Exception do begin
+            fStartFailure := E;
+            raise;
+          end;
+        end;
+      end;
+    end;
 
   assembly
 
     property Sessions := new SessionManager; readonly;
     property Values := new WebApplicationValues; readonly;
+
+    method NotifySessionStart(aContext: not nullable WebContext);
+    begin
+      locking fApplicationMonitor do
+        if assigned(fApplication) and not fEnded then begin
+          var lPreviousLifetime := Current;
+          var lPreviousContext := fApplication.Context;
+          Current := self;
+          fApplication.Context := aContext;
+          try
+            fApplication.OnSessionStart;
+          finally
+            fApplication.Context := lPreviousContext;
+            Current := lPreviousLifetime;
+          end;
+        end;
+    end;
+
+    method NotifySessionEnd(aSession: not nullable WebSessionState);
+    begin
+      locking fApplicationMonitor do
+        if assigned(fApplication) then begin
+          var lPreviousLifetime := Current;
+          var lPreviousContext := fApplication.Context;
+          var lPreviousSession := fApplication.EventSession;
+          Current := self;
+          fApplication.Context := nil;
+          fApplication.EventSession := aSession;
+          try
+            try
+              fApplication.OnSessionEnd;
+            except
+              on E: Exception do
+                Log($"ESP Session_End failed: {E}");
+            end;
+          finally
+            fApplication.EventSession := lPreviousSession;
+            fApplication.Context := lPreviousContext;
+            Current := lPreviousLifetime;
+          end;
+        end;
+    end;
+
+    method NotifyError(aContext: not nullable WebContext; aError: not nullable WebErrorContext);
+    begin
+      locking fApplicationMonitor do
+        if assigned(fApplication) then begin
+          var lPreviousLifetime := Current;
+          var lPreviousContext := fApplication.Context;
+          Current := self;
+          fApplication.Context := aContext;
+          try
+            fApplication.OnError(aError);
+          finally
+            fApplication.Context := lPreviousContext;
+            Current := lPreviousLifetime;
+          end;
+        end;
+    end;
+
+    method EndApplication;
+    begin
+      locking fApplicationMonitor do begin
+        if fEnded then
+          exit;
+        fEnded := true;
+        Sessions.EndAll;
+        if assigned(fApplication) then begin
+          var lPreviousLifetime := Current;
+          Current := self;
+          fApplication.Context := nil;
+          try
+            try
+              fApplication.OnEnd;
+            except
+              on E: Exception do
+                Log($"ESP Application_End failed: {E}");
+            end;
+          finally
+            Current := lPreviousLifetime;
+          end;
+        end;
+        fApplication := nil;
+      end;
+    end;
+
+    method Retain;
+    begin
+      locking fApplicationMonitor do
+        inc(fUsers);
+    end;
+
+    method Release;
+    begin
+      var lEnd := false;
+      locking fApplicationMonitor do begin
+        dec(fUsers);
+        lEnd := fUsers = 0;
+      end;
+      if lEnd then
+        EndApplication;
+    end;
+
+  private
+
+    fApplicationMonitor := new Monitor;
+    fApplication: nullable WebApplication;
+    fStartFailure: nullable Exception;
+    fStarted: Boolean;
+    fEnded: Boolean;
+    fUsers: Integer;
+
+    {$IF ECHOES}
+    [System.ThreadStatic]
+    {$ENDIF}
+    class var fCurrent: nullable WebApplicationLifetime;
 
   end;
 
@@ -422,7 +578,8 @@ type
 
   private
 
-    class property CurrentValues: WebApplicationValues read coalesce(WebContext.Current:Lifetime, WebApplicationLifetime.Default).Values;
+    class property CurrentValues: WebApplicationValues read coalesce(WebApplicationLifetime.Current, WebContext.Current:Lifetime,
+      WebApplicationLifetime.Default).Values;
 
   end;
 

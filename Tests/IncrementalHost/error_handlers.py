@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise application discovery and both error signatures in real ESP hosts."""
 import argparse
+import http.cookiejar
 import json
 from pathlib import Path
 import shutil
@@ -29,7 +30,17 @@ def run(args, incremental, legacy, application_format):
                      "aError: WebErrorContext")
         value = ('''new WebErrorContext(Server.GetLastError, Request.Url.ToAbsoluteString,
           "GET", Request.Path)''' if legacy else "aError")
+        end_marker = site / "application-ended.txt"
         members = f"""
+    method Application_Start(sender: Object; e: EventArgs);
+    begin
+      ErrorState.ApplicationStarts := ErrorState.ApplicationStarts+1;
+      Application["Started"] := "yes";
+    end;
+    method Application_End(sender: Object; e: EventArgs);
+    begin
+      System.IO.File.WriteAllText("{end_marker}", ErrorState.ApplicationStarts.ToString+":"+ErrorState.SessionEnds.ToString);
+    end;
     method Application_Error({signature});
     begin
       ErrorState.LastError := {value};
@@ -38,6 +49,12 @@ def run(args, incremental, legacy, application_format):
     method Session_Start(sender: Object; e: EventArgs);
     begin
       Session["Random"] := new Random;
+      ErrorState.SessionStarts := ErrorState.SessionStarts+1;
+    end;
+    method Session_End(sender: Object; e: EventArgs);
+    begin
+      ErrorState.SessionEndHadRandom := assigned(Session["Random"]);
+      ErrorState.SessionEnds := ErrorState.SessionEnds+1;
     end;
 """
         if not legacy:
@@ -54,6 +71,10 @@ type
   public
     class property LastError: WebErrorContext;
     class property Calls: Integer;
+    class property ApplicationStarts: Integer;
+    class property SessionStarts: Integer;
+    class property SessionEnds: Integer;
+    class property SessionEndHadRandom: Boolean;
   end;
 end.''')
         if application_format == "inline":
@@ -72,6 +93,9 @@ end.''')
                 (site / "Global.asax").write_text('<%@ Application Language="Oxygene" Inherits="Global" %>')
         (site / "Default.aspx").write_text('<%@ Page Language="Oxygene" %><% raise new Exception("original failure"); %>')
         (site / "status.aspx").write_text('<%@ Page Language="Oxygene" %><% Response.StatusCode := 500; %>')
+        (site / "session-state.aspx").write_text('''<%@ Page Language="Oxygene" %><% var lSession := Session; %><%= ErrorState.ApplicationStarts %>:<%= Application["Started"] %>:<%= ErrorState.SessionStarts %>:<%= if assigned(lSession["Random"]) then "random" else "missing" %>:<%= ErrorState.SessionEnds %>''')
+        (site / "abandon.aspx").write_text('<%@ Page Language="Oxygene" %><% Session.Abandon; %><%= ErrorState.SessionEnds %>:<%= ErrorState.SessionEndHadRandom %>')
+        (site / "expire.aspx").write_text('<%@ Page Language="Oxygene" %><% Session.Timeout := 0; %>expired')
         (site / "error.aspx").write_text('<%@ Page Language="Oxygene" %><%= ErrorState.Calls %>:<%= ErrorState.LastError.Exception.Message %>:<%= ErrorState.LastError.RequestUrl %>')
         (site / "broken.aspx").write_text('<%@ Page Language="Oxygene" %><% unknown_identifier_for_error_test; %>')
         # Full builds need a valid initial generation. Lazy builds can notify on
@@ -93,7 +117,8 @@ end.''')
         with (site / "host.log").open("w") as log:
             process = subprocess.Popen([
                 args.ebuild, "--serve-web-project", str(site), f"--port:{port}",
-                "--configuration:Debug", f"--setting:EBuild:ElementsCompilerDll={args.compiler}"
+                "--configuration:Debug", f"--setting:EBuild:ElementsCompilerDll={args.compiler}",
+                f"--intermediatebasefolder:{site / 'obj'}"
             ], stdout=log, stderr=subprocess.STDOUT)
             try:
                 deadline = time.monotonic() + 60
@@ -112,10 +137,33 @@ end.''')
                 assert code == 500 and f'1:original failure:http://localhost:{port}/?original=yes' in body, (code, body)
                 code, body = get('/status')
                 assert code == 500 and '1:original failure:' in body, (code, body)
+                opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+                def session_get(path):
+                    with opener.open(f"http://localhost:{port}{path}", timeout=30) as response:
+                        return response.read().decode()
+                assert session_get('/session-state') == '1:yes:1:random:0'
+                assert session_get('/session-state') == '1:yes:1:random:0'
+                assert session_get('/abandon') == '1:True'
+                assert session_get('/session-state') == '1:yes:2:random:1'
+                assert session_get('/expire') == 'expired'
+                assert session_get('/session-state') == '1:yes:3:random:2'
                 if incremental:
                     code, body = get('/broken')
                     assert code == 500 and '2:Compilation failed.' in body, (code, body)
                 assert get('/Global.asax')[0] == 404, "Application source must not be public"
+                if application_format == "inline" and incremental and not legacy:
+                    generation = json.loads(get('/__esp/diagnostics?format=json')[1])["activeGeneration"]
+                    page = site / "status.aspx"
+                    page.write_text(page.read_text() + "\n")
+                    deadline = time.monotonic() + 30
+                    while time.monotonic() < deadline:
+                        if json.loads(get('/__esp/diagnostics?format=json')[1])["activeGeneration"] > generation:
+                            break
+                        time.sleep(.1)
+                    else:
+                        raise AssertionError("Page edit did not publish a new generation")
+                    assert not end_marker.exists(), "Page-only update ended the application lifetime"
+                    assert session_get('/session-state') == '1:yes:3:random:2'
                 if application_format != "class":
                     generation = json.loads(get('/__esp/diagnostics?format=json')[1])["activeGeneration"]
                     application = site / "Global.asax"
@@ -130,6 +178,7 @@ end.''')
                         raise AssertionError("Global.asax edit did not rebuild the application")
                     code, body = get('/?reloaded=yes')
                     assert code == 500 and '1:original failure:' in body, (code, body)
+                    assert end_marker.read_text() == '1:3', "Session_End or Application_End did not run on generation retirement"
                 if application_format == "inline" and incremental and not legacy:
                     application = site / "Global.asax"
                     broken = application.read_text().replace("ErrorState.Calls := ErrorState.Calls+1;", "missing_application_identifier;")

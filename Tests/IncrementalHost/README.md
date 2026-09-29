@@ -107,10 +107,19 @@ cookies and authorization headers are not collected. A custom error page does
 not suppress the original failure; JSON includes both `status` and
 `responseStatus`.
 
-## Application error notifications
+## Application events
 
 `error_handlers.py` accepts the same `--ebuild`, `--compiler` and `--web-dll`
 arguments as the fixture above. It verifies inline Global.asax, inherited Global.asax, and automatic App_Code
 handler discovery for typed and legacy signatures in lazy and full builds, notification
-before custom error-page rendering, explicit status exclusion, and lazy compiler
-failures. See [the handler API](../../Source/Elements.Web/ApplicationErrors.md).
+before custom error-page rendering, explicit status exclusion, lazy compiler
+failures, and application/session start and end events. See [the handler API](../../Source/Elements.Web/ApplicationErrors.md).
+
+## Static error pages
+
+`static_error_pages.py --ebuild <Core EBuild> --compiler <compiler DLL> --runtime <Elements.Web DLL>`
+checks File-mode 404/500/503 rules, GET/HEAD, ordinary startup, and accepted
+publication restoration while incoming config and HTML differ. Repeat with
+`--full` for full compilation. It uses ephemeral ports and disposable sites,
+retains logs, and terminates only its own hosts. Runtime unit tests additionally
+cover invalid config, rule removal/override, unsafe paths and symlinks.

@@ -60,7 +60,6 @@ type
 
   end;
 
-  // A fresh application instance is used for each error notification.
   WebApplication = public class
   public
 
@@ -68,7 +67,27 @@ type
     property Request: WebRequest read Context.Request;
     property Response: WebResponse read Context.Response;
     property Server: WebServerForContext read Context.Server;
-    property Session: WebSessionState read Context.Session;
+    property Session: WebSessionState read coalesce(fEventSession, Context:Session);
+
+    method OnStart; virtual;
+    begin
+      InvokeLifecycleHandler("Application_Start");
+    end;
+
+    method OnEnd; virtual;
+    begin
+      InvokeLifecycleHandler("Application_End");
+    end;
+
+    method OnSessionStart; virtual;
+    begin
+      InvokeLifecycleHandler("Session_Start");
+    end;
+
+    method OnSessionEnd; virtual;
+    begin
+      InvokeLifecycleHandler("Session_End");
+    end;
 
     method OnError(aError: not nullable WebErrorContext); virtual;
     begin
@@ -100,6 +119,37 @@ type
       {$ENDIF}
     end;
 
+  assembly
+
+    property EventSession: nullable WebSessionState read fEventSession write fEventSession;
+
+  private
+
+    fEventSession: nullable WebSessionState;
+
+    method InvokeLifecycleHandler(aName: not nullable String);
+    begin
+      {$IF ECHOES}
+      var lFlags := System.Reflection.BindingFlags.Instance or System.Reflection.BindingFlags.Public or
+                    System.Reflection.BindingFlags.NonPublic or System.Reflection.BindingFlags.DeclaredOnly;
+      var lType := GetType;
+      while assigned(lType) and (lType <> typeOf(WebApplication)) do begin
+        for each lMethod in lType.GetMethods(lFlags) do begin
+          if (caseInsensitive(lMethod.Name) = caseInsensitive(aName)) and not lMethod.IsGenericMethod and
+             (lMethod.ReturnType = typeOf(System.Void)) then begin
+            var lParameters := lMethod.GetParameters;
+            if (length(lParameters) = 2) and (lParameters[0].ParameterType = typeOf(Object)) and
+               (lParameters[1].ParameterType = typeOf(EventArgs)) then begin
+              lMethod.Invoke(self, [self, new EventArgs]);
+              exit;
+            end;
+          end;
+        end;
+        lType := lType.BaseType;
+      end;
+      {$ENDIF}
+    end;
+
   end;
 
   WebServer = public partial class
@@ -119,12 +169,9 @@ type
         {$ENDIF}
         lContext.Error := lException;
         WebContext.Current := lContext;
-        var lApplication := aFactory:CreateApplication;
-        if assigned(lApplication) then begin
-          lApplication.Context := lContext;
-          lApplication.OnError(new WebErrorContext(lException, lOriginal.Request.Url.ToAbsoluteString,
-            String(aEvent.Request.Header.RequestType), aPath));
-        end;
+        lContext.Lifetime.EnsureStarted(aFactory, lContext);
+        lContext.Lifetime.NotifyError(lContext, new WebErrorContext(lException, lOriginal.Request.Url.ToAbsoluteString,
+          String(aEvent.Request.Header.RequestType), aPath));
       except
         on E: Exception do
           Log($"ESP Application_Error failed: {E}");
