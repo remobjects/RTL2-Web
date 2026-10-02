@@ -12,6 +12,8 @@ type
 
     method Start(aPort: Integer := 8001);
     begin
+      if not assigned(PageFactory) and not RequireUpdateTrigger then
+        fStartupStaticFiles := new WebStaticFiles(PhysicalRootFolder, nil);
       fServer := new HttpServer();
       fServer.ServerName := "RemObjectts Elements ESP HTTP Server";
       fServer.Port := aPort;
@@ -249,8 +251,7 @@ type
                   var lStream := aFactory.OpenResource(lRequestPath, true);
                   if assigned(lStream) then begin
                     //Log($"{lRequestPath} served as resource {lResourceName}");
-                    aEventArgs.Response.Header.SetHeaderValue("Content-Type", ContentTypeForFileName(lRequestPath));
-                    aEventArgs.Response.ContentStream := lStream;
+                    ServeStaticContent(lRequestPath, lStream, aEventArgs, aFactory);
                   end
                   else begin
                     Log($"{lRequestPath} resource 404");
@@ -282,7 +283,8 @@ type
           break;
         end;
 
-        if not assigned(aErrorPath) and (Integer(aEventArgs.Response.HttpCode) >= 400) then
+        if not assigned(aErrorPath) and (Integer(aEventArgs.Response.HttpCode) >= 400) and
+           not coalesce(lContext:Response:TrySkipIisCustomErrors, false) then
           RunError(aEventArgs, Integer(aEventArgs.Response.HttpCode), aFactory, aFailure);
 
       except
@@ -894,6 +896,7 @@ type
 
     method SetPageFactory(aFactory: nullable WebPageFactory);
     begin
+      aFactory:InitializeStaticFiles(coalesce(aFactory:PhysicalRootFolder, PhysicalRootFolder));
       aFactory:Seal;
       var lPrevious: nullable WebPageFactory;
       locking fFactoryMonitor do begin
@@ -1091,8 +1094,7 @@ type
         coalesce(aFactory:PhysicalBinFolder, PhysicalBinFolder));
       if not assigned(lFileName) then
         exit;
-      aEventArgs.Response.Header.SetHeaderValue("Content-Type", ContentTypeForFileName(lFileName));
-      aEventArgs.Response.ContentStream := LeaseFile(lFileName, aFactory);
+      ServeStaticContent(aRequestPath, LeaseFile(lFileName, aFactory), aEventArgs, aFactory, lFileName);
       result := true;
     end;
 
@@ -1473,6 +1475,17 @@ type
                          FindClassForPath(aPath));
     end;
   private
+
+    fStaticFiles: nullable WebStaticFiles;
+
+    property StaticFiles: nullable WebStaticFiles read fStaticFiles; assembly;
+
+    method InitializeStaticFiles(aRoot: nullable String); assembly;
+    begin
+      locking fLifecycleMonitor do
+        if not assigned(fStaticFiles) then
+          fStaticFiles := new WebStaticFiles(aRoot, self);
+    end;
 
     fLifetime := new WebApplicationLifetime;
     fLifecycleMonitor := new Monitor;
