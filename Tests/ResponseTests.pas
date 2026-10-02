@@ -9,6 +9,35 @@ type
   ResponseTests = public class(Test)
   public
 
+    method JsonErrorsAndFormContentTypes;
+    begin
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lServer := new WebServer(PageFactory := new JsonErrorFactory);
+      lServer.ErrorPaths[404] := "/custom-error";
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Http.HttpClient do begin
+          for each lPath in ["/skip", "/custom"] do
+            using lBody := new System.Net.Http.StringContent('{"test":true}', System.Text.Encoding.UTF8, "application/json") do
+            using lResponse := lClient.PostAsync($"http://127.0.0.1:{lPort}"+lPath, lBody).GetAwaiter.GetResult do begin
+              Assert.AreEqual(Integer(lResponse.StatusCode), 404);
+              Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult,
+                if lPath = "/skip" then '{"error":"missing"}' else "custom error; form empty");
+              if lPath = "/skip" then
+                Assert.AreEqual(lResponse.Content.Headers.ContentType.MediaType, "application/json");
+            end;
+          using lBody := new System.Net.Http.StringContent("test=hello+world", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded") do
+          using lResponse := lClient.PostAsync($"http://127.0.0.1:{lPort}/form", lBody).GetAwaiter.GetResult do
+            Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, "hello world");
+        end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
     method DefaultsToUtf8Html;
     begin
       var lResponse := new WebResponse(new HttpServerResponse);
@@ -123,6 +152,45 @@ type
       end;
     end;
 
+  end;
+
+  JsonErrorFactory = class(WebPageFactory)
+  public
+    method FindClassForPath(aPath: not nullable String): nullable Object; override;
+    begin
+      if aPath in ["/skip", "/custom", "/custom-error", "/form"] then
+        result := new JsonErrorHandler;
+    end;
+
+    method FindRedirectForPath(aPath: not nullable String): nullable String; override; empty;
+  end;
+
+  JsonErrorHandler = class(IHttpHandler)
+  public
+    method ProcessRequest(aContext: WebContext);
+    begin
+      if aContext.Request.Url.Path = "/form" then begin
+        aContext.Response.Write(aContext.Request.Form["test"]);
+        exit;
+      end;
+      if aContext.Request.Url.Path = "/custom-error" then begin
+        Assert.IsFalse(assigned(aContext.Request.Form["test"]));
+        aContext.Response.Write("custom error; form empty");
+        exit;
+      end;
+      var lBytes := new Byte[aContext.Request.ContentLength];
+      var lOffset := 0;
+      while lOffset < length(lBytes) do begin
+        var lRead := aContext.Request.InputStream.Read(lBytes, lOffset, length(lBytes)-lOffset);
+        Assert.IsTrue(lRead > 0);
+        inc(lOffset, lRead);
+      end;
+      Assert.AreEqual(System.Text.Encoding.UTF8.GetString(lBytes), '{"test":true}');
+      aContext.Response.TrySkipIisCustomErrors := aContext.Request.Url.Path = "/skip";
+      aContext.Response.StatusCode := 404;
+      aContext.Response.ContentType := "application/json";
+      aContext.Response.Write('{"error":"missing"}');
+    end;
   end;
 
   StreamingCompletionFactory = class(WebPageFactory)

@@ -195,7 +195,8 @@ type
         exit fMultipartForm;
       end;
 
-      result := new WebNameValueCollection(if HttpServerRequest.HasContentLength then String(HttpServerRequest.ContentString));
+      var lMediaType := ContentType:SubstringToFirstOccurrenceOf(";"):Trim:ToLowerInvariant;
+      result := new WebNameValueCollection(if (lMediaType = "application/x-www-form-urlencoded") and HttpServerRequest.HasContentLength then String(HttpServerRequest.ContentString));
     end;
 
     method LazyLoadFiles: WebFileCollection;

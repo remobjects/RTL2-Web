@@ -165,7 +165,7 @@ type
 
     property HttpServerResponse: HttpServerResponse; readonly;
     property Encoding: Encoding := Encoding.UTF8;
-    property TrySkipIisCustomErrors: Boolean; // ignored
+    property TrySkipIisCustomErrors: Boolean;
 
     //
     // Writing content
