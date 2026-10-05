@@ -18,6 +18,12 @@ type
       Assert.AreEqual(HttpUtility.HtmlEncode("<a href=""/"">A&B</a>"), "&lt;a href=&quot;/&quot;&gt;A&amp;B&lt;/a&gt;");
     end;
 
+    method HtmlEncodeEscapesApostrophesForSingleQuotedAttributes;
+    begin
+      Assert.AreEqual(HttpUtility.HtmlEncode("it's <safe> &"), "it&#39;s &lt;safe&gt; &amp;");
+      Assert.AreEqual(HttpUtility.HtmlDecode("it&#39;s &amp;#39;"), "it's &#39;");
+    end;
+
     method HtmlDecodeRestoresCommonMarkupCharacters;
     begin
       Assert.AreEqual(HttpUtility.HtmlDecode("&lt;a href=&quot;/&quot;&gt;A&amp;B&lt;/a&gt;"), "<a href=""/"">A&B</a>");

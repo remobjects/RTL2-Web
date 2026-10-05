@@ -32,7 +32,7 @@ type
       if not assigned(aString) then
         exit;
 
-      result := aString.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("""", "&quot;");
+      result := aString.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("""", "&quot;").Replace("'", "&#39;");
     end;
 
     method HtmlDecode(aString: nullable String): nullable String;
@@ -40,7 +40,7 @@ type
       if not assigned(aString) then
         exit;
 
-      result := aString.Replace("&quot;", """").Replace("&gt;", ">").Replace("&lt;", "<").Replace("&amp;", "&");
+      result := aString.Replace("&#39;", "'").Replace("&quot;", """").Replace("&gt;", ">").Replace("&lt;", "<").Replace("&amp;", "&");
     end;
 
     method HtmlAttributeEncode(aString: nullable String): nullable String;
