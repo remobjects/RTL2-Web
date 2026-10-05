@@ -1,4 +1,4 @@
-namespace RemObjects.Elements.Web;
+﻿namespace RemObjects.Elements.Web;
 
 type
   // Compiler-independent transport. The host owns publication and persistence.
@@ -172,10 +172,10 @@ type
       fFactory := aFactory;
     end;
 
-    method Close; override;
+    method close; override;
     begin
       try
-        inherited Close;
+        inherited close;
       finally
         var lFactory := fFactory;
         fFactory := nil;

@@ -124,7 +124,7 @@ type
       raise new NotSupportedException("The HTTP response output stream cannot be seeked.");
     end;
 
-    method Close; override; empty;
+    method close; override; empty;
 
     method Flush; override;
     begin

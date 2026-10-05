@@ -1,4 +1,4 @@
-namespace RemObjects.Elements.Web;
+﻿namespace RemObjects.Elements.Web;
 
 type
   // Owned by a single published factory; never reads live configuration during requests.
@@ -22,7 +22,7 @@ type
             lStream.CopyTo(lBytes);
             lXml := XmlDocument.FromBinary(new Binary(lBytes.ToArray));
           finally
-            lStream.Close;
+            lStream.close;
           end;
       end;
       if not assigned(lXml) then
@@ -252,7 +252,7 @@ type
       fLength := aLength;
     end;
 
-    method GetLength: Int64; override;
+    method getLength: Int64; override;
     begin
       result := fLength;
     end;
@@ -321,7 +321,7 @@ type
         end;
       finally
         if lOwned then
-          aStream.Close;
+          aStream.close;
       end;
     end;
 
