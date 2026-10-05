@@ -124,6 +124,7 @@ type
         end;
         var lRequestQuery := if assigned(aErrorPath) then aErrorQuery else aEventArgs.Request.QueryString.ToString;
         var lTransferCount := 0;
+        var lLocalizationLanguage: nullable String;
 
         if not assigned(aErrorPath) and (caseInsensitive(aEventArgs.Request.Header.RequestType) in ["get", "head"]) then begin
           var lRedirect := aFactory:FindRedirectForPath(lRequestPath);
@@ -141,6 +142,7 @@ type
 
         while true do begin
           lContext := CreateRequestContext(aEventArgs, lRequestPath, lRequestQuery, aFactory);
+          lContext.LocalizationLanguage := lLocalizationLanguage;
           var lPreviousContext := WebContext.Current;
           var lObject: nullable Object;
           WebContext.Current := lContext;
@@ -218,6 +220,7 @@ type
             end;
 
             if assigned(lTransferPath) then begin
+              lLocalizationLanguage := lContext.LocalizationLanguage;
               var lQuestionMark := lTransferPath.IndexOf("?");
               if lQuestionMark ≥ 0 then begin
                 lRequestPath := lTransferPath.Substring(0, lQuestionMark);

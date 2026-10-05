@@ -305,11 +305,13 @@ type
     property Lifetime: not nullable WebApplicationLifetime; readonly;
     property Items: WebContextItems := new WebContextItems; readonly; lazy;
     property Server: WebServerForContext;
+    property LocalizationLanguage: String read coalesce(fLocalizationLanguage, "en") write fLocalizationLanguage;
 
     class property Current: nullable WebContext read GetCurrent write SetCurrent;
 
   private
 
+    field fLocalizationLanguage: nullable String;
     fSession: nullable WebSessionState;
 
     method GetSession: WebSessionState;
@@ -444,6 +446,8 @@ type
 
   assembly
 
+    property ActiveLocalizationManager: ILocalizationManager read GetLocalizationManager write SetLocalizationManager;
+
     property Sessions := new SessionManager; readonly;
     property Values := new WebApplicationValues; readonly;
 
@@ -529,6 +533,7 @@ type
           end;
         end;
         fApplication := nil;
+        fLocalizationManager := nil;
       end;
     end;
 
@@ -551,6 +556,23 @@ type
 
   private
 
+    field fLocalizationManager: nullable ILocalizationManager;
+
+    method GetLocalizationManager: ILocalizationManager;
+    begin
+      locking fApplicationMonitor do begin
+        if not assigned(fLocalizationManager) then
+          raise new InvalidOperationException("No localization manager is configured. Set Application.ActiveLocalizationManager during application startup, for example to new JsonLocalizationManager.");
+        result := fLocalizationManager;
+      end;
+    end;
+
+    method SetLocalizationManager(aValue: nullable ILocalizationManager);
+    begin
+      locking fApplicationMonitor do
+        fLocalizationManager := aValue;
+    end;
+
     fApplicationMonitor := new Monitor;
     fApplication: nullable WebApplication;
     fStartFailure: nullable Exception;
@@ -570,6 +592,8 @@ type
 
     property Values[aName: String]: nullable Object read CurrentValues[aName] write CurrentValues[aName]; default;
     property Keys: sequence of String read CurrentValues.Keys;
+    property ActiveLocalizationManager: ILocalizationManager read CurrentLifetime.ActiveLocalizationManager
+      write CurrentLifetime.ActiveLocalizationManager;
 
     method RemoveAll;
     begin
@@ -578,8 +602,9 @@ type
 
   private
 
-    class property CurrentValues: WebApplicationValues read coalesce(WebApplicationLifetime.Current, WebContext.Current:Lifetime,
-      WebApplicationLifetime.Default).Values;
+    class property CurrentLifetime: WebApplicationLifetime read coalesce(WebApplicationLifetime.Current, WebContext.Current:Lifetime,
+      WebApplicationLifetime.Default);
+    class property CurrentValues: WebApplicationValues read CurrentLifetime.Values;
 
   end;
 

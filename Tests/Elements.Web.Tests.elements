@@ -53,6 +53,10 @@
   <ItemGroup>
     <Compile Include="Program.pas" />
     <Compile Include="ApplicationTests.pas" />
+    <Compile Include="LocalizationTests.pas" />
+    <EmbeddedResource Include="Resources/Localization.en.json">
+      <LogicalName>LocalizationEmbeddedEnglish</LogicalName>
+    </EmbeddedResource>
     <Compile Include="CookieTests.pas" />
     <Compile Include="HttpUtilityTests.pas" />
     <Compile Include="IntegrationTests.pas" />
