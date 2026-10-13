@@ -73,6 +73,7 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.pas" />
     <Compile Include="EspPage.pas" />
+    <Compile Include="EspPageHeader.pas" />
     <Compile Include="Localization.pas" />
     <Compile Include="EspRequest.pas" />
     <Compile Include="EspResponse.pas" />

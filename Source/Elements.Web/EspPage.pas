@@ -46,8 +46,13 @@ type
     event Load: EventHandler;
     event UnLoad: EventHandler;
 
-    method Initialize(e: EventArgs); assembly;
+    // Entry point used by the host and generated master/user-control code.
+    method Initialize(e: EventArgs);
     begin
+      if fInitialized then
+        exit;
+      fInitialized := true;
+      InitializeTemplate(e);
       OnInit(e);
     end;
 
@@ -64,6 +69,9 @@ type
     end;
 
   protected
+
+    // Generated markup initialization must not override a user's OnInit.
+    method InitializeTemplate(e: EventArgs); virtual; empty;
 
     method OnInit(e: EventArgs); virtual;
     begin
@@ -135,6 +143,8 @@ type
     end;
 
   private
+
+    fInitialized: Boolean;
     fContentTemplates := new Dictionary<String, CompiledTemplateBuilder>;
   end;
 
@@ -173,6 +183,7 @@ type
       if not assigned(fHeader) then
         fHeader := new WebPageHeader;
 
+      fHeader.Context := Context;
       result := fHeader;
     end;
 
@@ -242,14 +253,6 @@ type
   public
 
   end;
-
-  WebPageHeader = public class
-  public
-    property Title: String;
-  end;
-
-
-
 
   //WebSessionState = public System.Web.SessionState.HttpSessionState;
   //HttpContext = public System.Web.HttpContext;

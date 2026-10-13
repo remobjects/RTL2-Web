@@ -47,7 +47,7 @@ type
       fRawValue := nil;
     end;
 
-    property Item[aName: not nullable String]: nullable String read GetValue(aName); default;
+    property Item[aName: not nullable String]: nullable String read GetValue(aName) write &Set; default;
     property Count: Integer read fValues.Count;
     property Keys: sequence of String read fValues.Keys;
     property Values: ImmutableDictionary<String,String> read fValues;

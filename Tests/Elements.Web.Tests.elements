@@ -59,6 +59,7 @@
     </EmbeddedResource>
     <Compile Include="CookieTests.pas" />
     <Compile Include="HttpUtilityTests.pas" />
+    <Compile Include="HeaderTests.pas" />
     <Compile Include="IntegrationTests.pas" />
     <Compile Include="NameValueCollectionTests.pas" />
     <Compile Include="ResponseTests.pas" />
