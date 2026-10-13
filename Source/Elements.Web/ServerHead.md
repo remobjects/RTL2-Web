@@ -19,11 +19,8 @@ An explicitly assigned title, including an empty string, overrides the default.
 There is one rendered title; when the markup omits it, ESP inserts one after the
 opening head tag. With an explicit title element, its position is preserved.
 
-Dynamic title markup such as `<title>Hello <%= name %></title>` retains normal
-template output semantics. Its fallback is evaluated at render time only when
-`Page.Title` is nil; it is not a value available from `Page.Title` during Init.
-`<%= ... %>` remains raw output, while `<%~ ... %>` remains encoded localization
-output. Assign `Page.Title` in code for an automatically HTML-encoded value.
+Dynamic `<%...%>` markup inside a server-head title is currently diagnosed by
+EBuild. Assign `Page.Title` in code for a dynamic, automatically HTML-encoded title.
 
 `Header.Attributes["lang"] := "nl"` updates a case-insensitive attribute
 collection. Use `Header.ID` and `Header.Visible` for the control's ID and
@@ -43,13 +40,11 @@ full ASP.NET control-tree lifecycle or view-state implementation.
 Duplicate, self-closing, and unclosed server heads and duplicate/directly
 unclosed titles are rejected. Separate templates cannot register two heads
 on the same page. The title element is represented by `Header.Title`, not a
-separate title control. Title attributes other than `runat` are diagnosed
-instead of being silently discarded. Server-side meta/link types and the ASP.NET StyleSheet
+separate title control. Title attributes are currently ignored; use `Header.Title` for the title value. Server-side meta/link types and the ASP.NET StyleSheet
 API are outside this implementation.
 
 Build and deploy matching EBuild and Elements.Web versions. Runtime source
 belongs in the standalone RTL2.Web repository; EBuild owns markup compilation.
 
-`EspPageHeader.pas` owns header state and rendering. EBuild's head/title helpers
-track a single open/title/closed state, parse closing tags through the normal
-markup scanner, and use the same container-rendering helpers as `asp:Panel`.
+`EspPageHeader.pas` owns header state and rendering. EBuild owns head/title markup compilation and invokes the shared runtime
+initialization and rendering hooks.
