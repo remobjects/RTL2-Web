@@ -307,13 +307,16 @@ type
 
       var lBoundaryBytes := Encoding.UTF8.GetBytes("--"+lBoundary);
       var lHeaderTerminator := [Byte(13), Byte(10), Byte(13), Byte(10)];
-      var lPosition := FindBytes(lBody, lBoundaryBytes, 0);
+      var lPosition := FindMultipartBoundary(lBody, lBoundaryBytes, 0);
 
       while lPosition ≥ 0 do begin
         lPosition := lPosition+length(lBoundaryBytes);
 
         if (lPosition+1 < length(lBody)) and (lBody[lPosition] = Byte(45)) and (lBody[lPosition+1] = Byte(45)) then
           break;
+
+        while (lPosition < length(lBody)) and (lBody[lPosition] in [Byte(32), Byte(9)]) do
+          inc(lPosition);
 
         if (lPosition+1 < length(lBody)) and (lBody[lPosition] = Byte(13)) and (lBody[lPosition+1] = Byte(10)) then
           inc(lPosition, 2);
@@ -324,7 +327,7 @@ type
 
         var lHeaders := ParsePartHeaders(new String(CopyBytes(lBody, lPosition, lHeaderEnd-lPosition), Encoding.UTF8));
         var lContentStart := lHeaderEnd+length(lHeaderTerminator);
-        var lNextBoundary := FindBytes(lBody, lBoundaryBytes, lContentStart);
+        var lNextBoundary := FindMultipartBoundary(lBody, lBoundaryBytes, lContentStart);
         if lNextBoundary < 0 then
           break;
 
@@ -379,6 +382,27 @@ type
           exit;
         end;
       end;
+    end;
+
+    method FindMultipartBoundary(aBytes: not nullable array of Byte; aBoundary: not nullable array of Byte; aStart: Integer): Integer;
+    begin
+      var lPosition := FindBytes(aBytes, aBoundary, aStart);
+      while lPosition ≥ 0 do begin
+        // A delimiter occupies a complete line; a matching prefix is still payload.
+        if (lPosition = 0) or ((lPosition ≥ 2) and (aBytes[lPosition-2] = Byte(13)) and (aBytes[lPosition-1] = Byte(10))) then begin
+          var lEnd := lPosition+length(aBoundary);
+          var lClosing := (lEnd+1 < length(aBytes)) and (aBytes[lEnd] = Byte(45)) and (aBytes[lEnd+1] = Byte(45));
+          if lClosing then
+            inc(lEnd, 2);
+          while (lEnd < length(aBytes)) and (aBytes[lEnd] in [Byte(32), Byte(9)]) do
+            inc(lEnd);
+          if (lClosing and (lEnd = length(aBytes))) or
+             ((lEnd+1 < length(aBytes)) and (aBytes[lEnd] = Byte(13)) and (aBytes[lEnd+1] = Byte(10))) then
+            exit lPosition;
+        end;
+        lPosition := FindBytes(aBytes, aBoundary, lPosition+1);
+      end;
+      result := -1;
     end;
 
     method FindBytes(aBytes: not nullable array of Byte; aNeedle: not nullable array of Byte; aStart: Integer): Integer;
