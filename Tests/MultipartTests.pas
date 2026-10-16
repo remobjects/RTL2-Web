@@ -9,7 +9,7 @@ type
   public
     method BoundaryLinesPreservePayload;
     begin
-      // Positive/negative guards: only complete delimiter lines split binary files and adjacent fields.
+      // Positive/negative guards: only complete delimiter lines split files; preserve raw 00/FF bytes and adjacent fields.
       var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
       lReservation.Start;
       var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
@@ -30,14 +30,14 @@ type
                 lPayload+#13#10+"--ESP-boundary "+#9+#13#10+
                 'Content-Disposition: form-data; name="note"'+#13#10+#13#10+
                 "after"+#13#10+"--ESP-boundary"+lEnding;
-              var lBytes := System.Text.Encoding.UTF8.GetBytes(lBody);
+              var lBytes := System.Text.Encoding.Latin1.GetBytes(lBody);
               using lContent := new System.Net.Http.ByteArrayContent(lBytes) do begin
                 lContent.Headers.ContentType := new System.Net.Http.Headers.MediaTypeHeaderValue("multipart/form-data");
                 lContent.Headers.ContentType.Parameters.Add(new System.Net.Http.Headers.NameValueHeaderValue("boundary", "ESP-boundary"));
                 using lResponse := lClient.PostAsync($"http://127.0.0.1:{lPort}/upload", lContent).GetAwaiter.GetResult do begin
                   Assert.AreEqual(Integer(lResponse.StatusCode), 200);
                   Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult,
-                    "after|1|"+System.Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(lPayload)));
+                    "after|1|"+System.Convert.ToBase64String(System.Text.Encoding.Latin1.GetBytes(lPayload)));
                 end;
               end;
             end;
