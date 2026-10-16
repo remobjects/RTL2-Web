@@ -37,6 +37,13 @@ content page's Init. User controls retain ESP's existing render-time creation
 and Load order, with Init immediately before their first Load. This is not a
 full ASP.NET control-tree lifecycle or view-state implementation.
 
+Registered user controls are visible by default. Set `Visible="false"` on the
+control tag to suppress its template body, including nested controls; the
+surrounding page still renders. ESP checks `Visible` after Init and Load, so a
+handler can change whether the body renders. The control itself still receives
+Init, Load and UnLoad; explicit writes to `Response` in those handlers remain
+visible even when its template body is hidden.
+
 Duplicate, self-closing, and unclosed server heads and duplicate/directly
 unclosed titles are rejected. Separate templates cannot register two heads
 on the same page. The title element is represented by `Header.Title`, not a
