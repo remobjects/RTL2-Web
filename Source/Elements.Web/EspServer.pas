@@ -91,15 +91,21 @@ type
           exit;
         end;
         if RequireUpdateTrigger and not assigned(aFactory) then begin
-          aFailure:Message := "Requested before site was ready";
+          var lFailure := HostFailure;
+          if assigned(lFailure) then
+            aFailure:CaptureException(lFailure)
+          else
+            aFailure:Message := "Requested before site was ready";
           if TryServeStartupError(aEventArgs, 503) then
             exit;
           aEventArgs.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode.ServiceUnavailable;
           aEventArgs.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
           aEventArgs.Response.Header.SetHeaderValue("Cache-Control", "no-store");
           aEventArgs.Response.Header.SetHeaderValue("X-Content-Type-Options", "nosniff");
-          aEventArgs.Response.ContentString := RenderErrorPage(503, "Website not published yet", lRequestPath,
-            "This website is waiting for its first publication. Please check back soon.");
+          aEventArgs.Response.ContentString := RenderErrorPage(503,
+            if assigned(lFailure) then "Website recovery failed" else "Website not published yet", lRequestPath,
+            if assigned(lFailure) then "The website could not be restored. Please check back soon."
+            else "This website is waiting for its first publication. Please check back soon.");
           exit;
         end;
         if HostStarting and not assigned(aFactory) then begin

@@ -39,6 +39,16 @@ type
             Assert.IsTrue(length(lBytes) > 8);
             Assert.AreEqual(System.BitConverter.ToString(lBytes, 0, 8), "89-50-4E-47-0D-0A-1A-0A");
           end;
+          lServer.HostFailure := new Exception("private recovery diagnostic test-token");
+          using lRecovery := lClient.GetAsync($"http://127.0.0.1:{lPort}/").GetAwaiter.GetResult do begin
+            Assert.AreEqual(Integer(lRecovery.StatusCode), 503);
+            Assert.IsTrue(lRecovery.Headers.CacheControl.NoStore);
+            var lHtml := lRecovery.Content.ReadAsStringAsync.GetAwaiter.GetResult;
+            Assert.IsTrue(lHtml.Contains("Website recovery failed"));
+            Assert.IsFalse(lHtml.Contains("not published yet"));
+            Assert.IsFalse(lHtml.Contains("private recovery diagnostic"));
+            Assert.IsFalse(lHtml.Contains("test-token"));
+          end;
         end;
       finally
         lServer.Stop;
