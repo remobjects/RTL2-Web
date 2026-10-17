@@ -26,7 +26,7 @@ type
     property Session: WebSessionState read Context.Session;
 
     property ID: String;
-    property Visible: Boolean;
+    property Visible: Boolean := true;
     property Page: Page read Context.Page;
     property Parent: Control; // todo
     property Server: WebServerForContext read Context.Server;

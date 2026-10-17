@@ -63,6 +63,7 @@
     <Compile Include="IntegrationTests.pas" />
     <Compile Include="NameValueCollectionTests.pas" />
     <Compile Include="ResponseTests.pas" />
+    <Compile Include="MultipartTests.pas" />
     <Compile Include="DiagnosticsTests.pas" />
     <Compile Include="StaticFileTests.pas" />
   </ItemGroup>
