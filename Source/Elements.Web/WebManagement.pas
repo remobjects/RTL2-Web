@@ -172,10 +172,10 @@ type
       fFactory := aFactory;
     end;
 
-    method close; override;
+    method Close; override;
     begin
       try
-        inherited close;
+        inherited Close;
       finally
         var lFactory := fFactory;
         fFactory := nil;

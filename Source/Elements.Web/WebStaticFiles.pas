@@ -22,7 +22,7 @@ type
             lStream.CopyTo(lBytes);
             lXml := XmlDocument.FromBinary(new Binary(lBytes.ToArray));
           finally
-            lStream.close;
+            lStream.Close;
           end;
       end;
       if not assigned(lXml) then
@@ -252,7 +252,7 @@ type
       fLength := aLength;
     end;
 
-    method getLength: Int64; override;
+    method GetLength: Int64; override;
     begin
       result := fLength;
     end;
@@ -321,7 +321,7 @@ type
         end;
       finally
         if lOwned then
-          aStream.close;
+          aStream.Close;
       end;
     end;
 
