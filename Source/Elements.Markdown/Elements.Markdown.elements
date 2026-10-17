@@ -73,6 +73,11 @@
     <SubMode>WebAssembly</SubMode>
     <BinaryName>ElementsMarkdown</BinaryName>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Target)' == 'Island.Fuchsia'">
+    <Mode>Island</Mode>
+    <SubMode>Fuchsia</SubMode>
+    <BinaryName>ElementsMarkdown</BinaryName>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Target)' == 'Toffee.macOS'">
     <Mode>Toffee</Mode>
     <SDK>macOS</SDK>
