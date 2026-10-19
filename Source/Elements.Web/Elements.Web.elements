@@ -44,6 +44,10 @@
     <Mode>Island</Mode>
     <SubMode>Windows</SubMode>
   </PropertyGroup>
+  <PropertyGroup Condition=" '$(Target)' == 'Island.Fuchsia' ">
+    <Mode>Island</Mode>
+    <SubMode>Fuchsia</SubMode>
+  </PropertyGroup>
   <ItemGroup Condition=" '$(Target)' == 'Echoes.Standard' ">
     <Reference Include="Elements" />
     <Reference Include="Echoes" />
@@ -64,6 +68,13 @@
     <Reference Include="RemObjects.InternetPack" />
   </ItemGroup>
   <ItemGroup Condition=" '$(Target)' == 'Island.Windows' ">
+    <Reference Include="Elements" />
+    <Reference Include="Island" />
+    <Reference Include="gc" />
+    <Reference Include="rtl" />
+    <Reference Include="RemObjects.InternetPack" />
+  </ItemGroup>
+  <ItemGroup Condition=" '$(Target)' == 'Island.Fuchsia' ">
     <Reference Include="Elements" />
     <Reference Include="Island" />
     <Reference Include="gc" />

@@ -16,13 +16,12 @@
       <HintPath>..\..\Elements\Bin\References\Echoes\NET\RemObjects.Elements.EUnit.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <ProjectReference Include="..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Echoes.elements">
-      <Project>{A0B2BF66-F2B1-4EF9-A9CE-792AB3094233}</Project>
-      <ProjectFile>..\..\RTL2\Source\RemObjects.Elements.RTL\Elements.RTL.Echoes.elements</ProjectFile>
-      <Private>True</Private>
-    </ProjectReference>
     <Reference Include="Elements.Markdown">
       <HintPath>..\Source\Elements.Markdown\Bin\Debug\Elements.Markdown.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Elements">
+      <HintPath>..\..\Elements\Bin\References\Echoes\NETStandard2.0\Elements.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>
