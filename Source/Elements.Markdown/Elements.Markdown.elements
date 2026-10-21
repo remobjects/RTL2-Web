@@ -107,6 +107,7 @@
     <Reference Include="Elements" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AssemblyInfo.pas" />
     <Compile Include="Markdown.pas" />
     <Compile Include="MermaidRuntime.pas" />
     <None Include="Resources\MERMAID-LICENSE.txt" />

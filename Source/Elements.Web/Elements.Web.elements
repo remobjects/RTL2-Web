@@ -49,9 +49,18 @@
     <SubMode>Fuchsia</SubMode>
   </PropertyGroup>
   <ItemGroup Condition=" '$(Target)' == 'Echoes.Standard' ">
-    <Reference Include="Elements" />
-    <Reference Include="Echoes" />
-    <Reference Include="RemObjects.InternetPack" />
+    <Reference Include="Elements">
+      <HintPath>..\..\..\RTL2\Bin\Echoes\NETStandard2.0\Elements.dll</HintPath>
+    </Reference>
+    <Reference Include="Echoes">
+      <HintPath>..\..\..\RTL2\Bin\Echoes\NETStandard2.0\Echoes.dll</HintPath>
+    </Reference>
+    <Reference Include="RemObjects.InternetPack">
+      <HintPath>..\..\..\internetpack\Bin\Debug\Echoes\NETStandard2.0\RemObjects.InternetPack.dll</HintPath>
+    </Reference>
+    <EmbeddedResource Include="Resources/Logo.png">
+      <LogicalName>RemObjects.Elements.Web.Logo.png</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup Condition=" '$(Target)' == 'Island.Darwin.macOS' ">
     <Reference Include="Elements" />
@@ -102,11 +111,6 @@
     <Compile Include="WebDiagnostics.pas" />
     <Compile Include="WebApplication.pas" />
     <Compile Include="EspSessions.pas" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(Target)' == 'Echoes.Standard'">
-    <EmbeddedResource Include="Resources/Logo.png">
-      <LogicalName>RemObjects.Elements.Web.Logo.png</LogicalName>
-    </EmbeddedResource>
   </ItemGroup>
   <ItemGroup Condition="'$(Target)' == 'Cooper'">
     <Reference Include="remobjects.internetpack">

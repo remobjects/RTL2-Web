@@ -20,8 +20,8 @@ uses
 [assembly: ComVisible(false)]
 
 [assembly: AssemblyDelaySign(false)]
-[assembly: AssemblyKeyFile('')]
-[assembly: AssemblyKeyName('')]
+[assembly: AssemblyKeyName("RemObjectsSoftware")]
+
 
 {$ENDIF}
 
