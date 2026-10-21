@@ -575,7 +575,8 @@ type
 
     method Stop;
     begin
-      fServer.Close();
+      fServer:Close();
+      fServer := nil;
       PageFactory := nil;
     end;
 
@@ -621,7 +622,7 @@ type
     end;
     property ErrorPaths := new Dictionary<Integer,String>;
 
-    property Port: Integer read fServer.Port;
+    property Port: nullable Integer read fServer:Port;
 
     // Hosts register their captured/generated roots explicitly. Never infer
     // ownership from filenames or from arbitrary temporary-directory names.
