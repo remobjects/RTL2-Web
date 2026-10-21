@@ -54,15 +54,17 @@ type
 
     property Cookies[aName: String]: nullable WebCookie read GetCookie; virtual; default;
     property Count: Integer read fCookies.Count;
-    property Keys: sequence of String read fCookies.Keys;
+    property Keys: sequence of String read fCookies.Select(c -> c.Name);
 
   protected
 
-    var fCookies := new Dictionary<String, WebCookie>;
+    var fCookies := new List<WebCookie>;
 
     method GetCookie(aName: not nullable String): nullable WebCookie; virtual;
     begin
-      result := fCookies[aName];
+      for each lCookie in fCookies do
+        if lCookie.Name = aName then
+          result := lCookie;
     end;
 
     method LoadCookieHeader(aCookieHeader: nullable String);
@@ -73,7 +75,10 @@ type
         if lSplit.Count = 2 then begin
           var lCookie := new WebCookie;
           lCookie.Name := WebNameValueCollection.DecodeFormValue(lSplit[0].Trim);
-          fCookies[lCookie.Name] := lCookie;
+          var lPrevious := GetCookie(lCookie.Name);
+          if assigned(lPrevious) then
+            fCookies.Remove(lPrevious);
+          fCookies.Add(lCookie);
           //Log($"got cookie '{lSplit[0].Trim}'");
 
           var lValues := lSplit[1].Trim.Split("&");
@@ -99,10 +104,10 @@ type
     method GetCookieHeaderString: String;
     begin
       var lString := new StringBuilder;
-      for each k in fCookies.Keys index i do begin
+      for each lCookie in fCookies index i do begin
         if i > 0 then
           lString.Append(Environment.LineBreak);
-        lString.Append(GetCookieHeaderString(fCookies[k]));
+        lString.Append(GetCookieHeaderString(lCookie));
       end;
 
       result := lString.ToString;
@@ -111,7 +116,7 @@ type
 
     method GetCookieHeaderStrings: sequence of String;
     begin
-      result := fCookies.Keys.Select(k -> GetCookieHeaderString(fCookies[k]));
+      result := fCookies.Select(c -> GetCookieHeaderString(c));
     end;
 
     method GetCookieHeaderString(aCookie: not nullable WebCookie): String;
@@ -175,8 +180,17 @@ type
 
     method &Add(aCookie: WebCookie);
     begin
-      if assigned(aCookie) and assigned(aCookie.Name) then
-        fCookies[aCookie.Name] := aCookie;
+      if assigned(aCookie) and assigned(aCookie.Name) then begin
+        // Cookie identity includes the serialized path and domain, not only its name.
+        for each lCookie in fCookies do
+          if (lCookie.Name = aCookie.Name)
+              and (coalesce(lCookie.Path, "/") = coalesce(aCookie.Path, "/"))
+              and (lCookie.Domain:ToLowerInvariant = aCookie.Domain:ToLowerInvariant) then begin
+            fCookies.Remove(lCookie);
+            break;
+          end;
+        fCookies.Add(aCookie);
+      end;
     end;
 
   protected
@@ -187,7 +201,7 @@ type
       if not assigned(result) then begin
         result := new WebCookie;
         result.Name := aName;
-        fCookies[aName] := result;
+        fCookies.Add(result);
       end;
     end;
 

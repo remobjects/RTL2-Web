@@ -33,6 +33,14 @@ type
       Assert.AreEqual(lCookies["Encoded"].Value, "a b");
     end;
 
+    method RepeatedRequestCookieNamesKeepLastValue;
+    begin
+      // Negative guard: response scope storage must preserve existing request name lookup semantics.
+      var lCookies := new ImmutableWebCookieCollection("same=root; same=nested");
+      Assert.AreEqual(lCookies.Count, 1);
+      Assert.AreEqual(lCookies["same"].Value, "nested");
+    end;
+
     method SerializesSimpleAndMultiValueResponseCookiesSeparately;
     begin
       var lCookies := new WebCookieCollection;
@@ -45,6 +53,39 @@ type
       Assert.AreEqual(lHeaderStrings.Count, 2);
       Assert.IsTrue(lHeaderStrings.Contains("Seen=yes; path=/"));
       Assert.IsTrue(lHeaderStrings.Contains("Flavor=kind=chocolate&size=large; path=/"));
+    end;
+
+    method SameNameCookiesRetainDistinctScopes;
+    begin
+      // Positive guard: AppendCookie preserves distinct path/domain scopes and last-added name lookup.
+      var lResponse := new WebResponse(new HttpServerResponse);
+      lResponse.AppendCookie(new WebCookie("same", Value := "root", Path := "/"));
+      lResponse.AppendCookie(new WebCookie("same", Value := "nested", Path := "/scope"));
+      lResponse.AppendCookie(new WebCookie("same", Value := "domain", Path := "/", Domain := "Example.Test"));
+      Assert.AreEqual(lResponse.Cookies.Count, 3);
+      Assert.AreEqual(lResponse.Cookies["same"].Value, "domain");
+      var lHeaders := lResponse.Cookies.GetCookieHeaderStrings.ToList;
+      Assert.AreEqual(lHeaders.Count, 3);
+      Assert.IsTrue(lHeaders.Contains("same=root; path=/"));
+      Assert.IsTrue(lHeaders.Contains("same=nested; path=/scope"));
+      Assert.IsTrue(lHeaders.Contains("same=domain; domain=example.test; path=/"));
+    end;
+
+    method SameScopeCookiesStillReplace;
+    begin
+      // Negative guard: default path and domain casing must not create duplicate cookie identities.
+      var lResponse := new WebResponse(new HttpServerResponse);
+      lResponse.AppendCookie(new WebCookie("same", Value := "old"));
+      lResponse.SetCookie(new WebCookie("same", Value := "root", Path := "/"));
+      lResponse.AppendCookie(new WebCookie("same", Value := "old-domain", Domain := "Example.Test"));
+      lResponse.SetCookie(new WebCookie("same", Value := "domain", Path := "/", Domain := "example.test"));
+      lResponse.AppendCookie(new WebCookie("Same", Value := "case-sensitive"));
+      var lHeaders := lResponse.Cookies.GetCookieHeaderStrings.ToList;
+      Assert.AreEqual(lResponse.Cookies.Count, 3);
+      Assert.AreEqual(lHeaders.Count, 3);
+      Assert.IsTrue(lHeaders.Contains("same=root; path=/"));
+      Assert.IsTrue(lHeaders.Contains("same=domain; domain=example.test; path=/"));
+      Assert.IsTrue(lHeaders.Contains("Same=case-sensitive; path=/"));
     end;
 
     method PersistentCookiesUseEnglishGmtExpiry;

@@ -70,6 +70,7 @@ type
 
     method CookiesSurviveResponseCompletion;
     begin
+      // Positive guard: same-name cookie scopes survive normal, streaming, redirect and End completion.
       // Isolated loopback server: do not use the developer's website port.
       var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
       lReservation.Start;
@@ -78,7 +79,7 @@ type
       var lServer := new WebServer(PageFactory := new CookieCompletionFactory);
       lServer.Start(lPort);
       try
-        for each lMode in ["normal", "redirect", "permanent", "end", "reflected"] do begin
+        for each lMode in ["normal", "flush", "redirect", "permanent", "end", "reflected"] do begin
           var lCookies := new System.Net.CookieContainer;
           using lHandler := new System.Net.Http.HttpClientHandler(AllowAutoRedirect := false, CookieContainer := lCookies) do
           using lClient := new System.Net.Http.HttpClient(lHandler) do begin
@@ -88,7 +89,12 @@ type
               Assert.AreEqual(Integer(lResponse.StatusCode), lExpectedStatus, lMode);
               Assert.IsTrue(lResponse.Headers.Contains("Set-Cookie"), lMode+": response cookies missing");
               var lCookieHeaders := lResponse.Headers.GetValues("Set-Cookie").ToList;
-              Assert.AreEqual(lCookieHeaders.Count, 3, lMode);
+              Assert.AreEqual(lCookieHeaders.Count, 5, lMode);
+              Assert.IsTrue(lCookieHeaders.Contains("same=root; path=/"), lMode);
+              Assert.IsTrue(lCookieHeaders.Contains("same=nested; path=/scope"), lMode);
+              Assert.IsTrue(lCookies.GetCookieHeader(new System.Uri(lBaseUrl+"/read")).Contains("same=root"), lMode);
+              var lScopedHeader := lCookies.GetCookieHeader(new System.Uri(lBaseUrl+"/scope/read"));
+              Assert.IsTrue(lScopedHeader.Contains("same=root") and lScopedHeader.Contains("same=nested"), lMode);
               var lHeaders := String.Join(#10, lCookieHeaders);
               Assert.IsTrue(lHeaders.Contains("StagingAccess=granted"), lMode);
               Assert.IsTrue(lHeaders.Contains("EspSessionId="), lMode);
@@ -99,7 +105,7 @@ type
                 Assert.AreEqual(lResponse.Headers.Location.ToString, "/read");
               var lBody := lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult;
               Assert.IsFalse(lBody.Contains("unreachable"), lMode);
-              if lMode in ["normal", "end"] then
+              if lMode in ["normal", "flush", "end"] then
                 Assert.AreEqual(lBody, "complete", lMode);
             end;
             var lResult := lClient.GetStringAsync(lBaseUrl+"/read").GetAwaiter.GetResult;
@@ -235,7 +241,7 @@ type
 
     method FindClassForPath(aPath: not nullable String): nullable Object; override;
     begin
-      if aPath in ["/normal", "/redirect", "/permanent", "/end", "/reflected", "/read", "/download"] then
+      if aPath in ["/normal", "/flush", "/redirect", "/permanent", "/end", "/reflected", "/read", "/download"] then
         result := new CookieCompletionHandler;
     end;
 
@@ -270,8 +276,14 @@ type
       Context.Response.Cookies["SecureOnly"].Expires := DateTime.UtcNow.AddDays(1);
       Context.Response.Cookies["SecureOnly"].Secure := true;
       Context.Response.Cookies["SecureOnly"].HttpOnly := true;
+      Context.Response.AppendCookie(new WebCookie("same", Value := "root", Path := "/"));
+      Context.Response.AppendCookie(new WebCookie("same", Value := "nested", Path := "/scope"));
       Context.Response.Write("complete");
       case lMode of
+        "/flush": begin
+          Context.Response.Flush;
+          exit;
+        end;
         "/redirect": Context.Response.Redirect("/read");
         "/permanent": Context.Response.RedirectPermanent("/read");
         "/end": Context.Response.End;

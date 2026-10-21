@@ -329,18 +329,28 @@ type
     end;
 
     {$IF ECHOES}
-    [System.ThreadStatic]
-    {$ENDIF}
+    // Request helpers follow the logical execution context across real awaits.
+    class var fCurrent := new System.Threading.AsyncLocal<WebContext>;
+    {$ELSE}
     class var fCurrent: nullable WebContext;
+    {$ENDIF}
 
     class method GetCurrent: nullable WebContext;
     begin
+      {$IF ECHOES}
+      result := fCurrent.Value;
+      {$ELSE}
       result := fCurrent;
+      {$ENDIF}
     end;
 
     class method SetCurrent(aValue: nullable WebContext);
     begin
+      {$IF ECHOES}
+      fCurrent.Value := aValue;
+      {$ELSE}
       fCurrent := aValue;
+      {$ENDIF}
     end;
   end;
 
