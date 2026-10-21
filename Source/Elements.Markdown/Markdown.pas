@@ -456,7 +456,7 @@ type
         end;
         AppendEscapedCharacter(lOutput, aText[i]); inc(i);
       end;
-      result := lOutput.ToString;
+      result := lOutput.ToString as not nullable;
     end;
 
   public
@@ -588,7 +588,7 @@ type
         lOutput.Append("</script>" + #10);
       end;
 
-      result := lOutput.ToString;
+      result := lOutput.ToString as not nullable;
     end;
   end;
 
