@@ -559,11 +559,38 @@ type
       if length(lContentType) = 0 then
         exit;
 
-      var lBaseType := lContentType.SplitAtFirstOccurrenceOf(";")[0].Trim;
+      var lUpdatedType := "";
+      var lStart := 0;
+      var lQuoted := false;
+      var lEscaped := false;
+      // Only unquoted semicolons delimit parameters; quoted pairs must remain intact.
+      for i: Integer := 0 to length(lContentType) do begin
+        if i < length(lContentType) then begin
+          var lChar := lContentType[i];
+          if lEscaped then begin
+            lEscaped := false;
+            continue;
+          end;
+          if lQuoted and (lChar = #92) then begin
+            lEscaped := true;
+            continue;
+          end;
+          if lChar = '"' then
+            lQuoted := not lQuoted;
+          if (lChar <> ';') or lQuoted then
+            continue;
+        end;
+        var lPart := lContentType.Substring(lStart, i-lStart).Trim;
+        if lStart = 0 then
+          lUpdatedType := lPart
+        else if (length(lPart) > 0) and
+          (lPart.SplitAtFirstOccurrenceOf("=")[0].Trim.ToLowerInvariant <> "charset") then
+          lUpdatedType := lUpdatedType+"; "+lPart;
+        lStart := i+1;
+      end;
       if length(Charset) > 0 then
-        HttpServerResponse.Header.ContentType := $"{lBaseType}; charset={Charset}"
-      else
-        HttpServerResponse.Header.ContentType := lBaseType;
+        lUpdatedType := lUpdatedType+$"; charset={Charset}";
+      HttpServerResponse.Header.ContentType := lUpdatedType;
     end;
 
   end;

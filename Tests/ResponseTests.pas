@@ -64,6 +64,37 @@ type
       end;
     end;
 
+    method ContentTypePreservesMimeParameters;
+    begin
+      // Contract: retain non-charset parameters (including quoted delimiters); replace/remove only exact charset names, without duplication.
+      var lResponse := new WebResponse(new HttpServerResponse);
+      for each lParameters in ['profile=example', 'profile="one; charset=inside"; version=2',
+        'profile="one\"; charset=inside"; version=2', 'profile="one\\"; version=2', 'x-charset=keep; charset-extra=keep'] do begin
+        var lExpected := "application/json; "+lParameters;
+        lResponse.ContentType := lExpected;
+        Assert.AreEqual(lResponse.ContentType, lExpected+"; charset=utf-8");
+        lResponse.Charset := "iso-8859-1";
+        Assert.AreEqual(lResponse.ContentType, lExpected+"; charset=iso-8859-1");
+        lResponse.Charset := "iso-8859-1";
+        Assert.AreEqual(lResponse.ContentType, lExpected+"; charset=iso-8859-1");
+        lResponse.Charset := "";
+        Assert.AreEqual(lResponse.ContentType, lExpected);
+        lResponse.Charset := "utf-8";
+      end;
+      lResponse.ContentType := 'application/json; CHARSET = "old"; profile=example; charset=other';
+      Assert.AreEqual(lResponse.ContentType, "application/json; profile=example; charset=utf-8");
+      lResponse.Charset := nil;
+      Assert.AreEqual(lResponse.ContentType, "application/json; profile=example");
+      lResponse.ContentType := "application/octet-stream";
+      Assert.AreEqual(lResponse.ContentType, "application/octet-stream");
+      lResponse.Charset := "utf-8";
+      Assert.AreEqual(lResponse.ContentType, "application/octet-stream; charset=utf-8");
+      lResponse.ContentType := nil;
+      Assert.AreEqual(length(lResponse.ContentType), 0);
+      lResponse.ContentType := "";
+      Assert.AreEqual(length(lResponse.ContentType), 0);
+    end;
+
     method DefaultsToUtf8Html;
     begin
       var lResponse := new WebResponse(new HttpServerResponse);
