@@ -27,3 +27,11 @@ Compatibility: the protected `ImmutableWebCookieCollection.fCookies` storage
 changed from `Dictionary<String, WebCookie>` to `List<WebCookie>`. External
 subclasses that access this field must adapt to the list and be rebuilt; ordinary
 callers can continue using the existing collection methods and properties.
+
+## Management navigation
+
+Status, diagnostics and request-error pages generate credential-free navigation
+and source links. When `AuthorizationToken` is configured, each management request
+still requires authorization. Clients can send `Authorization: Bearer <token>`;
+read-only endpoints also accept an explicitly supplied `token` query parameter.
+Opening a page with that parameter does not authorize subsequent browser links.

@@ -98,7 +98,7 @@ type
         if aEvent.Request.QueryString["format"] ≠ "json" then begin
           aEvent.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(200);
           aEvent.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
-          aEvent.Response.ContentString := if lMethod = "head" then "" else RenderHostStatusPage(lToken);
+          aEvent.Response.ContentString := if lMethod = "head" then "" else RenderHostStatusPage;
           exit;
         end;
       end;
@@ -114,7 +114,7 @@ type
         aEvent.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(200);
         if not lJson then
           aEvent.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
-        aEvent.Response.ContentString := if lMethod = "head" then "" else RenderDiagnosticsPage(lPath = "/__esp/errors", lJson, lToken);
+        aEvent.Response.ContentString := if lMethod = "head" then "" else RenderDiagnosticsPage(lPath = "/__esp/errors", lJson);
         exit;
       end;
       var lArgs := new WebManagementEventArgs(IsUpdate := lUpdate,
@@ -136,8 +136,7 @@ type
       aEvent.Response.HttpCode := RemObjects.InternetPack.Http.HttpStatusCode(lArgs.StatusCode);
       if not lArgs.Json then begin
         aEvent.Response.Header.SetHeaderValue("Content-Type", "text/html; charset=utf-8");
-        var lQuery := if (length(AuthorizationToken) > 0) and (length(lToken) > 0) then "?token="+HttpUtility.UrlEncode(lToken) else "";
-        var lLinks := $'<p><a href="/__esp/diagnostics{HtmlLandingPage.EscapeHtml(lQuery)}">Diagnostics</a> · <a href="/__esp/errors{HtmlLandingPage.EscapeHtml(lQuery)}">Request errors</a></p>';
+        var lLinks := $'<p><a href="/__esp/diagnostics">Diagnostics</a> · <a href="/__esp/errors">Request errors</a></p>';
         lArgs.Body := lArgs.Body:Replace("</body>", lLinks+"</body>");
       end;
       aEvent.Response.ContentString := if lMethod = "head" then "" else coalesce(lArgs.Body, "{}");

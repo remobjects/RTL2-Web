@@ -45,6 +45,7 @@ type
 
     method StatusFormatDoesNotDependOnPublicationOrAuthentication;
     begin
+      // Preserve HTML/JSON selection across host modes; authenticated HTML never propagates the publisher token.
       var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
       lReservation.Start;
       var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
@@ -84,8 +85,10 @@ type
                       Assert.IsTrue(lBody.Contains("<strong>7</strong>"));
                       Assert.IsFalse(lBody.Contains("publication"));
                       Assert.IsTrue(lBody.Contains("ESPDebugMode "+(if lDebug then "enabled" else "disabled")));
+                      Assert.IsTrue(lBody.Contains('href="/__esp/diagnostics"'));
+                      Assert.IsTrue(lBody.Contains('href="/__esp/status?format=json"'));
                       if length(lToken) > 0 then
-                        Assert.IsTrue(lBody.Contains('/__esp/diagnostics?token=test-token'));
+                        Assert.IsFalse(lBody.Contains(lToken));
                     end;
                   end;
                 if length(lToken) > 0 then
@@ -537,7 +540,21 @@ type
           var lSourceHtml := lClient.GetStringAsync(lSourceUrl+"?token=test-token").GetAwaiter.GetResult;
           Assert.IsTrue(lSourceHtml.Contains("source &lt;line&gt;"));
           lErrorHtml := lClient.GetStringAsync("/__esp/errors?token=test-token").GetAwaiter.GetResult;
-          Assert.IsTrue(lErrorHtml.Contains('?token=test-token">&lt;unknown&gt;/Test.aspx:13:4</a> Error E100: Unknown identifier &lt;missing&gt;'));
+          // Keep source/navigation links usable with explicit authorization; never serialize the publisher token.
+          Assert.IsFalse(lErrorHtml.Contains("test-token"));
+          Assert.IsTrue(lErrorHtml.Contains('href="/__esp/source/'));
+          Assert.IsTrue(lErrorHtml.Contains('">&lt;unknown&gt;/Test.aspx:13:4</a> Error E100: Unknown identifier &lt;missing&gt;'));
+          lBuild.Diagnostics[0].SourceFileName := lSourceFile;
+          lServer.HostStatus := new WebHostStatus(Failure := lBuild);
+          lServer.ManagementRequest += (s, e) -> begin
+            (e as WebManagementEventArgs).Body := "{}";
+          end;
+          for each lPage in ["status", "diagnostics", "errors"] do
+            for each lFormat in ["", "&format=json"] do begin
+              var lBody := lClient.GetStringAsync("/__esp/"+lPage+"?token=test-token"+lFormat).GetAwaiter.GetResult;
+              Assert.IsFalse(lBody.Contains("test-token"));
+              Assert.IsFalse(lBody.Contains("token="));
+            end;
           lClient.DefaultRequestHeaders.Authorization := new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "test-token");
           using lResponse := lClient.GetAsync("/__esp/errors?format=json").GetAwaiter.GetResult do
             Assert.AreEqual(Integer(lResponse.StatusCode), 200);

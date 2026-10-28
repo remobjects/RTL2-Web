@@ -75,7 +75,7 @@ type
       end;
     end;
 
-    method RenderDiagnosticsPage(aErrors: Boolean; aJson: Boolean; aToken: nullable String): not nullable String;
+    method RenderDiagnosticsPage(aErrors: Boolean; aJson: Boolean): not nullable String;
     begin
       var lDocument := new JsonObject;
       var lItems := new JsonArray;
@@ -90,7 +90,6 @@ type
       end;
       lDocument["generation"] := coalesce(lStatus:Generation, 0);
       lDocument["activeGeneration"] := coalesce(lStatus:ActiveGeneration, 0);
-      var lTokenQuery := if (length(AuthorizationToken) > 0) and (length(aToken) > 0) then "token="+HttpUtility.UrlEncode(aToken) else "";
       if aErrors then begin
         lDocument["errors"] := lItems;
         lDocument["capacity"] := 1000;
@@ -129,14 +128,14 @@ type
                 lFiles.Append(", ");
               var lFileHtml := HtmlLandingPage.EscapeHtml(lLocation);
               if assigned(lSource) then
-                lFileHtml := $'<a href="{HtmlLandingPage.EscapeHtml(lSource+(if length(lTokenQuery) > 0 then "?"+lTokenQuery else ""))}">{lFileHtml}</a>';
+                lFileHtml := $'<a href="{HtmlLandingPage.EscapeHtml(lSource)}">{lFileHtml}</a>';
               lFiles.Append(lFileHtml);
             end;
             if lDiagnostic.Line > 0 then
               lLocation := lLocation+$":{lDiagnostic.Line}:{lDiagnostic.Column}";
             var lLocationHtml := HtmlLandingPage.EscapeHtml(lLocation);
             if assigned(lSource) then
-              lLocationHtml := $'<a href="{HtmlLandingPage.EscapeHtml(lSource+(if length(lTokenQuery) > 0 then "?"+lTokenQuery else ""))}">{lLocationHtml}</a>';
+              lLocationHtml := $'<a href="{HtmlLandingPage.EscapeHtml(lSource)}">{lLocationHtml}</a>';
             lCompilerDetails.AppendLine(lLocationHtml+" "+HtmlLandingPage.EscapeHtml($"{lDiagnostic.Severity} {lDiagnostic.Code}: {lDiagnostic.Message}"));
           end;
           lItem["diagnostics"] := lDiagnostics;
@@ -182,7 +181,7 @@ type
             lLocation := lLocation+$":{lDiagnostic.Line}:{lDiagnostic.Column}";
           var lLocationHtml := HtmlLandingPage.EscapeHtml(lLocation);
           if assigned(lSource) then
-            lLocationHtml := $'<a href="{HtmlLandingPage.EscapeHtml(lSource+(if length(lTokenQuery) > 0 then "?"+lTokenQuery else ""))}">{lLocationHtml}</a>';
+            lLocationHtml := $'<a href="{HtmlLandingPage.EscapeHtml(lSource)}">{lLocationHtml}</a>';
           lRows.Append($"<tr><td>{HtmlLandingPage.EscapeHtml(lDiagnostic.Severity)}</td><td>{HtmlLandingPage.EscapeHtml(lDiagnostic.UnitName)}</td><td>{lLocationHtml}</td><td>{HtmlLandingPage.EscapeHtml(lDiagnostic.Code)}</td><td>{HtmlLandingPage.EscapeHtml(lDiagnostic.Message)}</td></tr>");
         end;
       end;
@@ -191,8 +190,6 @@ type
       var lTitle := if aErrors then "ESP Request Errors" else "ESP Diagnostics";
       var lDescription := if aErrors then "Latest 1,000 failed requests, newest first. History resets when the server restarts." else "Current diagnostics from builds already attempted. This page does not trigger validation or compilation.";
       var lHeaders := if aErrors then "<th>Time (UTC)</th><th>Request</th><th>Error status</th><th>Response status</th><th>Details</th>" else "<th>Severity</th><th>Unit</th><th>Location</th><th>Code</th><th>Message</th>";
-      var lQuery := if length(lTokenQuery) > 0 then "?"+lTokenQuery else "";
-      var lJsonQuery := "?format=json"+(if length(lTokenQuery) > 0 then "&"+lTokenQuery else "");
       var lPath := if aErrors then "/__esp/errors" else "/__esp/diagnostics";
       if lItems.Count = 0 then
         lRows.Append("<tr><td colspan=""5"">"+(if aErrors then "No request errors recorded." else "No diagnostics reported.")+"</td></tr>");
@@ -218,7 +215,7 @@ type
           }
         </script>
         <h1>{{lTitle}}</h1>
-        <nav><a href="/__esp/status{{HtmlLandingPage.EscapeHtml(lQuery)}}">Status</a> · <a href="/__esp/diagnostics{{HtmlLandingPage.EscapeHtml(lQuery)}}">Diagnostics</a> · <a href="/__esp/errors{{HtmlLandingPage.EscapeHtml(lQuery)}}">Request errors</a> · <a href="{{lPath}}{{HtmlLandingPage.EscapeHtml(lJsonQuery)}}">JSON</a> · <a href="{{lPath}}{{HtmlLandingPage.EscapeHtml(lQuery)}}">Refresh</a></nav>
+        <nav><a href="/__esp/status">Status</a> · <a href="/__esp/diagnostics">Diagnostics</a> · <a href="/__esp/errors">Request errors</a> · <a href="{{lPath}}?format=json">JSON</a> · <a href="{{lPath}}">Refresh</a></nav>
         <p>{{lDescription}}</p>
         <p>{{HtmlLandingPage.EscapeHtml(lStatus:Summary)}}</p>
         <div class="table-scroll"><table><thead><tr>{{lHeaders}}</tr></thead><tbody>{{lRows}}</tbody></table></div>
