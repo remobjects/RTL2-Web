@@ -38,6 +38,32 @@ type
       end;
     end;
 
+    method SuppressContentAppliesToOutputStream;
+    begin
+      // Contract: all output APIs suppress bytes in buffered/streaming mode; enabled writes and toggling preserve the selected byte slice.
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lServer := new WebServer(PageFactory := new SuppressedOutputFactory);
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Http.HttpClient do
+          for each lTransport in ["buffered", "streaming"] do
+            for each lApi in ["stream", "text", "binary"] do
+              for each lMode in ["suppressed", "enabled", "toggle"] do begin
+                var lPath := "/"+lTransport+"/"+lApi+"/"+lMode;
+                using lResponse := lClient.GetAsync($"http://127.0.0.1:{lPort}"+lPath).GetAwaiter.GetResult do begin
+                  Assert.AreEqual(Integer(lResponse.StatusCode), 200, lPath);
+                  Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult,
+                    if lMode = "suppressed" then "" else "AB", lPath);
+                end;
+              end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
     method DefaultsToUtf8Html;
     begin
       var lResponse := new WebResponse(new HttpServerResponse);
@@ -158,6 +184,39 @@ type
       end;
     end;
 
+  end;
+
+  SuppressedOutputFactory = class(WebPageFactory)
+  public
+    method FindClassForPath(aPath: not nullable String): nullable Object; override;
+    begin
+      result := new SuppressedOutputHandler;
+    end;
+
+    method FindRedirectForPath(aPath: not nullable String): nullable String; override; empty;
+  end;
+
+  SuppressedOutputHandler = class(IHttpHandler)
+  public
+    method ProcessRequest(aContext: WebContext);
+    begin
+      // Contract: retain the stream across suppression changes; hidden bytes must not reappear after Flush or re-enabling output.
+      var lResponse := aContext.Response;
+      var lPath := aContext.Request.Url.Path;
+      var lStream := lResponse.OutputStream;
+      if lPath.Contains("/streaming/") then
+        lResponse.Flush;
+      lResponse.SuppressContent := not lPath.EndsWith("/enabled");
+      for i: Integer := 0 to (if lPath.EndsWith("/toggle") then 1 else 0) do begin
+        if lPath.Contains("/stream/") then
+          lStream.Write([Byte(88), Byte(65), Byte(66), Byte(89)], 1, 2)
+        else if lPath.Contains("/binary/") then
+          lResponse.BinaryWrite([Byte(65), Byte(66)])
+        else
+          lResponse.Write("AB");
+        lResponse.SuppressContent := false;
+      end;
+    end;
   end;
 
   JsonErrorFactory = class(WebPageFactory)

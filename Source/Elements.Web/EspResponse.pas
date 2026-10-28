@@ -445,6 +445,9 @@ type
 
     method WriteBytes(aBuffer: array of Byte; aOffset: Int32; aCount: Int32);
     begin
+      if SuppressContent then
+        exit;
+
       if fCompleted then
         raise new InvalidOperationException("The HTTP response has already completed.");
       if fStreaming then
