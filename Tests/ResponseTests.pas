@@ -95,6 +95,65 @@ type
       Assert.AreEqual(length(lResponse.ContentType), 0);
     end;
 
+    method StatusDescriptionReachesTransport;
+    begin
+      // Contract: custom status text reaches final headers; nil restores code defaults, empty stays empty, and line breaks cannot create headers.
+      var lTransport := new HttpServerResponse;
+      var lResponse := new WebResponse(lTransport);
+      lResponse.Status := "202 Custom Accepted";
+      lTransport.FinalizeHeader;
+      Assert.AreEqual(lResponse.Status, "202 Custom Accepted");
+      Assert.AreEqual(lTransport.Header.FirstHeader, "HTTP/1.1 202 Custom Accepted");
+      lResponse.StatusCode := 201;
+      lTransport.FinalizeHeader;
+      Assert.AreEqual(lTransport.Header.FirstHeader, "HTTP/1.1 201 Custom Accepted");
+      lResponse.StatusDescription := nil;
+      lTransport.FinalizeHeader;
+      Assert.AreEqual(lResponse.Status, "201 Created");
+      Assert.AreEqual(lTransport.Header.FirstHeader, "HTTP/1.1 201 Created");
+      lResponse.StatusDescription := "";
+      lTransport.FinalizeHeader;
+      Assert.AreEqual(lTransport.Header.FirstHeader, "HTTP/1.1 201 ");
+      for each lInvalid in ["bad"+#13+"header", "bad"+#10+"header"] do begin
+        lResponse.StatusDescription := lInvalid;
+        var lRejected := false;
+        try
+          lTransport.FinalizeHeader;
+        except
+          on E: RemObjects.Elements.RTL.ArgumentException do lRejected := true;
+        end;
+        Assert.IsTrue(lRejected);
+      end;
+      lResponse.StatusDescription := nil;
+      lTransport.FinalizeHeader;
+      Assert.AreEqual(lTransport.Header.FirstHeader, "HTTP/1.1 201 Created");
+    end;
+
+    method CustomStatusSurvivesResponseCompletion;
+    begin
+      // Contract: Status and StatusDescription reach the wire in normal/Flush/End completion; ordinary code-only responses keep their reason.
+      var lReservation := new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+      lReservation.Start;
+      var lPort := (lReservation.LocalEndpoint as System.Net.IPEndPoint).Port;
+      lReservation.Stop;
+      var lServer := new WebServer(PageFactory := new StatusCompletionFactory);
+      lServer.Start(lPort);
+      try
+        using lClient := new System.Net.Http.HttpClient do
+          for each lMode in ["status", "description", "ordinary"] do
+            for each lCompletion in ["normal", "flush", "end"] do begin
+              var lPath := "/"+lMode+"/"+lCompletion;
+              using lResponse := lClient.GetAsync($"http://127.0.0.1:{lPort}"+lPath).GetAwaiter.GetResult do begin
+                Assert.AreEqual(Integer(lResponse.StatusCode), 202, lPath);
+                Assert.AreEqual(lResponse.ReasonPhrase, if lMode = "ordinary" then "Accepted" else "Custom Accepted", lPath);
+                Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, "accepted", lPath);
+              end;
+            end;
+      finally
+        lServer.Stop;
+      end;
+    end;
+
     method DefaultsToUtf8Html;
     begin
       var lResponse := new WebResponse(new HttpServerResponse);
@@ -215,6 +274,37 @@ type
       end;
     end;
 
+  end;
+
+  StatusCompletionFactory = class(WebPageFactory)
+  public
+    method FindClassForPath(aPath: not nullable String): nullable Object; override;
+    begin
+      result := new StatusCompletionHandler;
+    end;
+
+    method FindRedirectForPath(aPath: not nullable String): nullable String; override; empty;
+  end;
+
+  StatusCompletionHandler = class(IHttpHandler)
+  public
+    method ProcessRequest(aContext: WebContext);
+    begin
+      // Contract: exercise both setters and all supported completion paths without writing beyond End.
+      var lPath := aContext.Request.Url.Path;
+      if lPath.StartsWith("/status/") then
+        aContext.Response.Status := "202 Custom Accepted"
+      else begin
+        aContext.Response.StatusCode := 202;
+        if lPath.StartsWith("/description/") then
+          aContext.Response.StatusDescription := "Custom Accepted";
+      end;
+      aContext.Response.Write("accepted");
+      if lPath.EndsWith("/flush") then
+        aContext.Response.Flush
+      else if lPath.EndsWith("/end") then
+        aContext.Response.End;
+    end;
   end;
 
   SuppressedOutputFactory = class(WebPageFactory)

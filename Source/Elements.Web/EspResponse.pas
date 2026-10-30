@@ -403,7 +403,7 @@ type
     property Headers[aName: String]: nullable String read GetHeader write SetHeader;
     property StatusCode: Integer read Integer(HttpServerResponse.HttpCode) write SetStatusCode;
     property SubStatusCode: Integer; public;
-    property StatusDescription: String read GetStatusDescription write fStatusDescription; public;
+    property StatusDescription: String read HttpServerResponse.ResponseText write HttpServerResponse.ResponseText; public;
     //property TrySkipIisCustomErrors: Boolean; public;
     //property SuppressFormsAuthenticationRedirect: Boolean; public;
     property BufferOutput: Boolean; public;
@@ -439,7 +439,6 @@ type
     fCacheControl: nullable String;
     fCharset: nullable String;
     fContentEncoding: Encoding;
-    fStatusDescription: nullable String;
 
   assembly
 
@@ -546,11 +545,6 @@ type
       end;
       if lSplit.Count = 2 then
         StatusDescription := lSplit[1];
-    end;
-
-    method GetStatusDescription: String;
-    begin
-      result := coalesce(fStatusDescription, HttpServerResponse.ResponseText);
     end;
 
     method UpdateContentTypeHeader;

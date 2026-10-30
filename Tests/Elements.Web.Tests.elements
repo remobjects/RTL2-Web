@@ -43,6 +43,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="RemObjects.InternetPack">
+      <HintPath>..\..\internetpack\Bin\Debug\Echoes\NETStandard2.0\RemObjects.InternetPack.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
