@@ -102,6 +102,8 @@
     <Compile Include="HtmlLandingPage.pas" />
     <Compile Include="Compatibility.pas" />
     <Compile Include="Compatibility.HttpUtility.pas" />
+    <Compile Include="String.Extensions.pas" />
+    <Compile Include="EmailValidation.pas" />
     <Compile Include="EspNameValueCollection.pas" />
     <Compile Include="EspCookies.pas" />
     <Compile Include="EspFiles.pas" />

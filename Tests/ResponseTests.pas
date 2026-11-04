@@ -32,6 +32,13 @@ type
           using lBody := new System.Net.Http.StringContent("test=hello+world", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded") do
           using lResponse := lClient.PostAsync($"http://127.0.0.1:{lPort}/form", lBody).GetAwaiter.GetResult do
             Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult, "hello world");
+
+          using lBody := new System.Net.Http.StringContent("value=form%3C%26%22%27%3E", System.Text.Encoding.UTF8, "application/x-www-form-urlencoded") do
+          using lResponse := lClient.PostAsync($"http://127.0.0.1:{lPort}/encoded?value=query%3C%26%22%27%3E", lBody).GetAwaiter.GetResult do begin
+            Assert.AreEqual(Integer(lResponse.StatusCode), 200);
+            Assert.AreEqual(lResponse.Content.ReadAsStringAsync.GetAwaiter.GetResult,
+              "query&lt;&amp;&quot;&#39;&gt;|form&lt;&amp;&quot;&#39;&gt;|query<&""'>|form<&""'>");
+          end;
         end;
       finally
         lServer.Stop;
@@ -344,7 +351,7 @@ type
   public
     method FindClassForPath(aPath: not nullable String): nullable Object; override;
     begin
-      if aPath in ["/skip", "/custom", "/custom-error", "/form"] then
+      if aPath in ["/skip", "/custom", "/custom-error", "/form", "/encoded"] then
         result := new JsonErrorHandler;
     end;
 
@@ -355,6 +362,14 @@ type
   public
     method ProcessRequest(aContext: WebContext);
     begin
+      if aContext.Request.Url.Path = "/encoded" then begin
+        var lRequest := aContext.Request;
+        Assert.IsNil(lRequest.QueryString["missing"]:HtmlEncoded);
+        Assert.IsNil(lRequest.Form["missing"]:HtmlEncoded);
+        aContext.Response.Write(lRequest.QueryString["value"]:HtmlEncoded+"|"+lRequest.Form["value"]:HtmlEncoded+
+          "|"+lRequest.QueryString["value"]+"|"+lRequest.Form["value"]);
+        exit;
+      end;
       if aContext.Request.Url.Path = "/form" then begin
         aContext.Response.Write(aContext.Request.Form["test"]);
         exit;
