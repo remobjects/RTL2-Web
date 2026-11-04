@@ -400,7 +400,8 @@ type
       var lOutput := new StringBuilder;
       var i := 0;
       while i < aText.Length do begin
-        if (aText[i] = '\\') and (i + 1 < aText.Length) then begin
+        if (aText[i] = Char(92)) and (i + 1 < aText.Length) and
+           (aText[i + 1] in [#33..#47, #58..#64, #91..#96, #123..#126]) then begin
           AppendEscapedCharacter(lOutput, aText[i + 1]); inc(i, 2); continue;
         end;
         if aOptions.AllowRawHtml and (i + 3 < aText.Length) and (aText.Substring(i, 4) = "<!--") then begin

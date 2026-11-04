@@ -1,3 +1,4 @@
+// Negative guard: escaped punctuation and raw HTML must remain literal in rendered reports.
 namespace Elements.RTL2.Tests.Shared;
 
 uses
@@ -7,6 +8,22 @@ uses
 type
   MarkdownTests = public class(Test)
   public
+    method RendersEscapedPunctuationLiterally;
+    begin
+      var lSlash := Char(92).ToString;
+      var lOptions := new MarkdownOptions(AllowRawHtml := true);
+      var lHtml := Markdown.ToHtml('colon ' + lSlash + '(:' + lSlash + ') expected; ' +
+        lSlash + '[open' + lSlash + ']' + lSlash + '(solution-file://open?path=/Other.pas' + lSlash + ') ' +
+        lSlash + '<script' + lSlash + '>', lOptions);
+      Check.IsTrue(lHtml.Contains('colon (:) expected;'));
+      Check.IsTrue(lHtml.Contains('[open](solution-file://open?path=/Other.pas)'));
+      Check.IsTrue(lHtml.Contains('&lt;script&gt;'));
+      Check.IsFalse(lHtml.Contains('<a href='));
+      Check.IsFalse(lHtml.Contains(lSlash));
+      var lPath := 'C:' + lSlash + 'Projects' + lSlash + 'Program.pas';
+      Check.IsTrue(Markdown.ToHtml(lPath, lOptions).Contains(lPath));
+    end;
+
     method RendersCommonBlocksAndExtensions;
     begin
       var lHtml := Markdown.ToHtml("# Heading" + #10 + #10 + "A **strong** and ~~deleted~~ [link](https://example.test)." + #10 + #10 + "- [x] done" + #10 + "- [ ] open" + #10 + #10 + "| A | B |" + #10 + "| - | - |" + #10 + "| 1 | 2 |");
