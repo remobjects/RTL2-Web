@@ -460,6 +460,52 @@ type
       result := lOutput.ToString as not nullable;
     end;
 
+    class method BulletItem(aLine: not nullable String; out aIndent: Integer; out aText: String): Boolean;
+    begin
+      aIndent := 0;
+      aText := "";
+      var lIndex := 0;
+      while (lIndex < aLine.Length) and (aLine[lIndex] in [' ', #9]) do begin
+        if aLine[lIndex] = #9 then
+          aIndent := aIndent + 4 - (aIndent mod 4)
+        else
+          inc(aIndent);
+        inc(lIndex);
+      end;
+      if (lIndex + 1 >= aLine.Length) or not (aLine[lIndex] in ['-', '*']) or (aLine[lIndex + 1] <> ' ') then
+        exit false;
+      aText := aLine.Substring(lIndex + 2):TrimEnd;
+      result := true;
+    end;
+
+    class method RenderBulletList(aLines: not nullable List<String>; var aIndex: Integer;
+      aIndent: Integer; aOutput: not nullable StringBuilder; aOptions: not nullable MarkdownOptions);
+    begin
+      aOutput.Append("<ul>" + #10);
+      var lIndent: Integer;
+      var lItem: String;
+      while (aIndex < aLines.Count) and BulletItem(aLines[aIndex], out lIndent, out lItem) and (lIndent >= aIndent) do begin
+        var lContentIndent := lIndent + 2;
+        if aOptions.EnableTaskLists and (lItem.StartsWith("[ ] ") or lItem.StartsWith("[x] ") or lItem.StartsWith("[X] ")) then begin
+          var lChecked := lItem[1] in ['x', 'X'];
+          lItem := lItem.Substring(4);
+          aOutput.Append("<li class=""task-list-item""><input type=""checkbox"" disabled" + (if lChecked then " checked" else "") + " /> ");
+        end
+        else begin
+          aOutput.Append("<li>");
+        end;
+        aOutput.Append(&Inline(lItem, aOptions));
+        inc(aIndex);
+
+        while (aIndex < aLines.Count) and BulletItem(aLines[aIndex], out lIndent, out lItem) and (lIndent >= lContentIndent) do begin
+          aOutput.Append(#10);
+          RenderBulletList(aLines, var aIndex, lContentIndent, aOutput, aOptions);
+        end;
+        aOutput.Append("</li>" + #10);
+      end;
+      aOutput.Append("</ul>" + #10);
+    end;
+
   public
     class method Render(aSource: not nullable String; aOptions: not nullable MarkdownOptions): not nullable String;
     begin
@@ -547,23 +593,11 @@ type
           while (i < lLines.Count) and lLines[i].Contains("|") and not IsBlank(lLines[i]) do begin var lCells := TableCells(lLines[i]); lOutput.Append("<tr>"); for each lCell in lCells index lCellIndex do lOutput.Append("<td" + TableAlignmentAttribute(lAlignments, lCellIndex) + ">" + &Inline(lCell, aOptions) + "</td>"); lOutput.Append("</tr>" + #10); inc(i); end;
           lOutput.Append("</tbody></table>" + #10); continue;
         end;
-        if lLines[i]:Trim.StartsWith("- ") or lLines[i]:Trim.StartsWith("* ") then begin
-          lOutput.Append("<ul>" + #10);
-          while (i < lLines.Count) and (lLines[i]:Trim.StartsWith("- ") or lLines[i]:Trim.StartsWith("* ")) do begin
-            var lItem := lLines[i]:Trim.Substring(2);
-            if aOptions.EnableTaskLists and ((lItem.StartsWith("[ ] ")) or (lItem.StartsWith("[x] ")) or (lItem.StartsWith("[X] "))) then begin
-              var lChecked := lItem[1] in ['x', 'X'];
-              lItem := lItem.Substring(4);
-              lOutput.Append("<li class=""task-list-item""><input type=""checkbox"" disabled" + if lChecked then " checked" else "" + " /> ");
-            end
-            else begin
-              lOutput.Append("<li>");
-            end;
-
-            lOutput.Append(&Inline(lItem, aOptions) + "</li>" + #10);
-            inc(i);
-          end;
-          lOutput.Append("</ul>" + #10); continue;
+        var lBulletIndent: Integer;
+        var lBulletText: String;
+        if BulletItem(lLines[i], out lBulletIndent, out lBulletText) then begin
+          RenderBulletList(lLines, var i, 0, lOutput, aOptions);
+          continue;
         end;
         var lParagraph := new StringBuilder;
         while (i < lLines.Count) and not IsBlank(lLines[i]) do begin

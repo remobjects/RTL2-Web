@@ -44,6 +44,71 @@ type
       Check.IsTrue(Markdown.ToHtml("<span>safe caller choice</span>", lOptions).Contains("<span>safe caller choice</span>"));
     end;
 
+    method NestsReleaseNoteBulletsInsideTheirParent;
+    begin
+      var lSource := "## New in Elements 14 rev1, November 6" + #10 + #10 +
+        "* New [Promethium](/elements/promethium) language frontend: Python comes to Elements" + #10 +
+        "* Support for creating Island/Delphi packages (Preview: Delphi 13/Windows)" + #10 +
+        "* Island LTO" + #10 +
+        "* Support for external .NET Nullability Annotations on .NET base APIs" + #10 +
+        "* App Store Connect & Publishing Imporvemnts for Apple platforms" + #10 +
+        "  * Connect your App Store Connect account to Fire, Water and Earth" + #10 +
+        "  * Package & Notarize macOS apps right from EBuild" + #10 +
+        "  * Create Provisioning Profiles, Certificates and Bundle Identifiers for the IDE or CodeBot" + #10 +
+        "  * Publish apps to App Store Connect right from EBuild, via the connected account" + #10 +
+        "* New Code Model Diagnostics sheet in Fire/Water/Earth to find code problems when IDE Smarts break" + #10 +
+        "* Support for WinForms and WPF designers in .NET Core projects, in Vsiual Studio 2022 and 2026";
+      for each lOptions in [MarkdownOptions.CommonMark, MarkdownOptions.GitHub] do begin
+        var lHtml := Markdown.ToHtml(lSource, lOptions);
+        Check.IsTrue(lHtml.Contains("<li>App Store Connect &amp; Publishing Imporvemnts for Apple platforms" + #10 +
+          "<ul>" + #10 + "<li>Connect your App Store Connect account to Fire, Water and Earth</li>"));
+        Check.IsTrue(lHtml.Contains("<li>Publish apps to App Store Connect right from EBuild, via the connected account</li>" + #10 +
+          "</ul>" + #10 + "</li>" + #10 + "<li>New Code Model Diagnostics sheet"));
+        Check.IsTrue(lHtml.Contains("<a href=""/elements/promethium"">Promethium</a>"));
+      end;
+    end;
+
+    method RendersMultipleBulletLevelsAndDedents;
+    begin
+      var lSource := "- Parent" + #10 + "  * Child" + #10 + "    - Grandchild" + #10 +
+        "  * Second child" + #10 + "- Sibling" + #10 + #10 + "After";
+      var lExpected := "<ul>" + #10 + "<li>Parent" + #10 + "<ul>" + #10 +
+        "<li>Child" + #10 + "<ul>" + #10 + "<li>Grandchild</li>" + #10 + "</ul>" + #10 + "</li>" + #10 +
+        "<li>Second child</li>" + #10 + "</ul>" + #10 + "</li>" + #10 +
+        "<li>Sibling</li>" + #10 + "</ul>" + #10 + "<p>After</p>" + #10;
+      Check.AreEqual(Markdown.ToHtml(lSource), lExpected);
+    end;
+
+    method RendersFourSpaceAndTabIndentedBulletLists;
+    begin
+      var lExpected := "<ul>" + #10 + "<li>Parent" + #10 + "<ul>" + #10 +
+        "<li>Child</li>" + #10 + "</ul>" + #10 + "</li>" + #10 + "<li>Sibling</li>" + #10 + "</ul>" + #10;
+      Check.AreEqual(Markdown.ToHtml("* Parent" + #10 + "    * Child" + #10 + "* Sibling"), lExpected);
+      Check.AreEqual(Markdown.ToHtml("* Parent" + #10 + #9 + "* Child" + #10 + "* Sibling"), lExpected);
+    end;
+
+    method KeepsBulletsInTheSameListWhenIndentationVaries;
+    begin
+      var lSource := " * Parent" + #10 + "     * Child" + #10 + "   * Second child" + #10 + "* Sibling";
+      var lExpected := "<ul>" + #10 + "<li>Parent" + #10 + "<ul>" + #10 +
+        "<li>Child</li>" + #10 + "<li>Second child</li>" + #10 + "</ul>" + #10 + "</li>" + #10 +
+        "<li>Sibling</li>" + #10 + "</ul>" + #10;
+      Check.AreEqual(Markdown.ToHtml(lSource), lExpected);
+    end;
+
+    method PreservesTaskListsWhenNested;
+    begin
+      var lSource := "- [x] Parent" + #10 + "  - [ ] Child" + #10 + "- [X] Sibling";
+      var lHtml := Markdown.ToHtml(lSource);
+      Check.IsTrue(lHtml.Contains("<li class=""task-list-item""><input type=""checkbox"" disabled checked /> Parent" + #10 +
+        "<ul>" + #10 + "<li class=""task-list-item""><input type=""checkbox"" disabled /> Child</li>"));
+      Check.IsTrue(lHtml.Contains("</ul>" + #10 + "</li>" + #10 +
+        "<li class=""task-list-item""><input type=""checkbox"" disabled checked /> Sibling</li>"));
+      var lCommonMark := Markdown.ToHtml(lSource, MarkdownOptions.CommonMark);
+      Check.IsTrue(lCommonMark.Contains("<li>[x] Parent" + #10 + "<ul>" + #10 + "<li>[ ] Child</li>"));
+      Check.IsFalse(lCommonMark.Contains("checkbox"));
+    end;
+
     method PreservesAngleBracketTextThatIsNotHtml;
     begin
       var lOptions := MarkdownOptions.CommonMark;
