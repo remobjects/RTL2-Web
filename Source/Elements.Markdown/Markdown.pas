@@ -6,14 +6,20 @@
 type
   MarkdownDialect = public enum (CommonMark, GitHub);
 
+  MarkdownUrlRewriter = public block(aUrl: not nullable String): nullable String;
+
   MarkdownOptions = public class
   public
     property AllowRawHtml: Boolean;
+    // Return nil to preserve the destination, or an empty string to clear it.
+    property RewriteUrl: nullable MarkdownUrlRewriter;
     property EnableTables: Boolean;
     property EnableStrikethrough: Boolean;
     property EnableTaskLists: Boolean;
     property EnableAutolinks: Boolean;
     property GenerateHeadingIds: Boolean;
+    property UseLegacyHeadingIds: Boolean;
+    property EnableFootnotes: Boolean;
     property EnableGitHubAlerts: Boolean;
     property IncludeMermaidRuntime: Boolean;
 
@@ -24,6 +30,7 @@ type
       EnableTaskLists := true;
       EnableAutolinks := true;
       GenerateHeadingIds := true;
+      EnableFootnotes := true;
       EnableGitHubAlerts := true;
     end;
 
@@ -34,6 +41,7 @@ type
       EnableTaskLists := aDialect = MarkdownDialect.GitHub;
       EnableAutolinks := true;
       GenerateHeadingIds := aDialect = MarkdownDialect.GitHub;
+      EnableFootnotes := aDialect = MarkdownDialect.GitHub;
       EnableGitHubAlerts := aDialect = MarkdownDialect.GitHub;
     end;
 
@@ -82,6 +90,32 @@ type
     begin
       result := MarkdownDocument.Parse(aSource, aOptions).ToHtml;
     end;
+  end;
+
+  MarkdownFootnote = assembly class
+  public
+    property LabelName: not nullable String;
+    property Lines: not nullable List<String> := new List<String>;
+    property Number: Integer;
+    property ReferenceCount: Integer;
+
+    constructor(aLabel: not nullable String);
+    begin
+      LabelName := aLabel;
+    end;
+
+    method ReferenceId(aOccurrence: Integer): not nullable String;
+    begin
+      result := "fnref:" + LabelName;
+      if aOccurrence > 1 then
+        result := result + ":" + aOccurrence.ToString;
+    end;
+  end;
+
+  MarkdownFootnotes = assembly class
+  public
+    property Definitions: not nullable Dictionary<String, MarkdownFootnote> := new Dictionary<String, MarkdownFootnote>;
+    property Ordered: not nullable List<MarkdownFootnote> := new List<MarkdownFootnote>;
   end;
 
   MarkdownRenderer = assembly static class
@@ -270,15 +304,26 @@ type
       result := true;
     end;
 
-    class method HeadingLevel(aLine: not nullable String; out aText: String): Integer;
+    class method HeadingLevel(aLine: not nullable String; out aText: String; aLegacy: Boolean := false): Integer;
     begin
       aText := "";
       var lIndex := 0;
       while (lIndex < aLine.Length) and (aLine[lIndex] = '#') do inc(lIndex);
-      if (lIndex = 0) or (lIndex > 6) or (lIndex = aLine.Length) or not aLine[lIndex].IsWhitespace then exit 0;
+      if (lIndex = 0) or (lIndex > 6) or (lIndex = aLine.Length) or (not aLegacy and not aLine[lIndex].IsWhitespace) then exit 0;
       aText := aLine.Substring(lIndex):Trim;
       while aText.EndsWith("#") do aText := aText.Substring(0, aText.Length - 1):Trim;
       result := lIndex;
+    end;
+
+    class method SetextHeadingLevel(aLine: not nullable String): Integer;
+    begin
+      var lUnderline := aLine.TrimEnd;
+      if (lUnderline.Length = 0) or not (lUnderline[0] in ['=', '-']) then
+        exit 0;
+      for each lCharacter in lUnderline do
+        if lCharacter <> lUnderline[0] then
+          exit 0;
+      result := if lUnderline[0] = '=' then 1 else 2;
     end;
 
     class method FenceInfo(aLine: not nullable String; out aMarker: Char; out aInfo: String): Boolean;
@@ -395,7 +440,242 @@ type
       result := lResult as not nullable;
     end;
 
-    class method &Inline(aText: not nullable String; aOptions: not nullable MarkdownOptions): not nullable String;
+    // Preserve the heading IDs published by MarkdownDeep.
+    class method LegacyHeadingId(aText: not nullable String; aUsedIds: not nullable Dictionary<String, Integer>): not nullable String;
+    begin
+      var lText := new StringBuilder;
+      var i := 0;
+      while i < aText.Length do begin
+        if (aText[i] = #92) and (i + 1 < aText.Length) and
+           (aText[i + 1] in [#33..#47, #58..#64, #91..#96, #123..#126]) then begin
+          inc(i, 2);
+          continue;
+        end;
+        if aText[i] = '&' then begin
+          var lEnd := i + 1;
+          if (lEnd < aText.Length) and (aText[lEnd] = '#') then
+            inc(lEnd);
+          var lNameStart := lEnd;
+          while (lEnd < aText.Length) and (IsAsciiLetter(aText[lEnd]) or IsAsciiDigit(aText[lEnd])) do
+            inc(lEnd);
+          if (lEnd > lNameStart) and (lEnd < aText.Length) and (aText[lEnd] = ';') then begin
+            i := lEnd + 1;
+            continue;
+          end;
+        end;
+        if (aText[i] = '_') and ((i = 0) or not aText[i - 1].IsLetterOrNumber) then begin
+          var lDelimiter := if (i + 1 < aText.Length) and (aText[i + 1] = '_') then "__" else "_";
+          var lContent := i + lDelimiter.Length;
+          var lEnd := aText.IndexOf(lDelimiter, lContent);
+          if (lEnd > lContent) and not aText[lContent].IsWhitespace and not aText[lEnd - 1].IsWhitespace then begin
+            lText.Append(aText.Substring(lContent, lEnd - lContent));
+            i := lEnd + lDelimiter.Length;
+            continue;
+          end;
+        end;
+        if aText[i] = '`' then begin
+          var lStart := i;
+          while (i < aText.Length) and (aText[i] = '`') do
+            inc(i);
+          var lDelimiter := aText.Substring(lStart, i - lStart);
+          var lEnd := aText.IndexOf(lDelimiter, i);
+          while lEnd >= 0 do begin
+            var lAfter := lEnd + lDelimiter.Length;
+            if (aText[lEnd - 1] <> '`') and ((lAfter = aText.Length) or (aText[lAfter] <> '`')) then begin
+              i := lAfter;
+              break;
+            end;
+            lEnd := aText.IndexOf(lDelimiter, lEnd + 1);
+          end;
+          continue;
+        end;
+        if aText[i] = '<' then begin
+          var lEnd := RawHtmlEnd(aText, i);
+          if lEnd >= 0 then begin
+            i := lEnd + 1;
+            continue;
+          end;
+        end;
+        if aText[i] = '[' then begin
+          var lBracket := aText.IndexOf(']', i + 1);
+          if (lBracket > i + 1) and (lBracket + 1 < aText.Length) and (aText[lBracket + 1] = '(') then begin
+            var lEnd: Integer;
+            if assigned(ReadDestination(aText, lBracket + 2, out lEnd)) then begin
+              lText.Append(aText.Substring(i + 1, lBracket - i - 1));
+              i := lEnd + 1;
+              continue;
+            end;
+          end;
+        end;
+        lText.Append(aText[i]);
+        inc(i);
+      end;
+
+      var lSlug := new StringBuilder;
+      for each lCharacter in (lText.ToString as String):ToLowerInvariant do begin
+        if (lSlug.Length = 0) and not lCharacter.IsLetter then
+          continue;
+        if lCharacter.IsLetterOrNumber or (lCharacter in ['_', '-', '.']) then
+          lSlug.Append(lCharacter)
+        else if lCharacter in [' ', #10] then
+          lSlug.Append('-');
+      end;
+
+      var lBase := if lSlug.Length > 0 then lSlug.ToString as not nullable else "section";
+      result := lBase;
+      var lSuffix := 1;
+      while aUsedIds.ContainsKey(result) do begin
+        result := lBase + "-" + lSuffix.ToString;
+        inc(lSuffix);
+      end;
+      aUsedIds[result] := 1;
+    end;
+
+    class method FootnoteLabel(aText: not nullable String; aStart: Integer; aEnd: Integer): nullable String;
+    begin
+      if (aEnd <= aStart + 2) or (aText[aStart + 1] <> '^') then
+        exit nil;
+
+      var lLabel := aText.Substring(aStart + 2, aEnd - aStart - 2);
+      for each lCharacter in lLabel do
+        if not (lCharacter.IsLetterOrNumber or (lCharacter in ['-', '_', '.'])) then
+          exit nil;
+      result := lLabel;
+    end;
+
+    class method CollectFootnotes(aLines: not nullable List<String>; aOptions: not nullable MarkdownOptions;
+      aFootnotes: not nullable MarkdownFootnotes): not nullable List<String>;
+    begin
+      result := new List<String>;
+      var lFence := Char(0);
+      var lInComment := false;
+      var i := 0;
+      while i < aLines.Count do begin
+        var lLine := aLines[i];
+        inc(i);
+        var lTrimmed := lLine.TrimStart;
+        var lMarker: Char;
+        var lInfo: String;
+        if not lInComment and FenceInfo(lLine, out lMarker, out lInfo) then begin
+          if lFence = #0 then
+            lFence := lMarker
+          else if lFence = lMarker then
+            lFence := #0;
+          result.Add(lLine);
+          continue;
+        end;
+        if (lFence = #0) and aOptions.AllowRawHtml and (lInComment or lTrimmed.StartsWith("<!--")) then begin
+          lInComment := not lLine.Contains("-->");
+          result.Add(lLine);
+          continue;
+        end;
+
+        var lLabel: nullable String;
+        var lBracket := lTrimmed.IndexOf(']');
+        if (lFence = #0) and (lLine.Length - lTrimmed.Length <= 3) and
+           not lLine.StartsWith(#9) and lTrimmed.StartsWith("[^") and
+           (lBracket >= 0) and (lBracket + 1 < lTrimmed.Length) and (lTrimmed[lBracket + 1] = ':') then
+          lLabel := FootnoteLabel(lTrimmed, 0, lBracket);
+        if not assigned(lLabel) then begin
+          result.Add(lLine);
+          continue;
+        end;
+
+        var lNote := new MarkdownFootnote(lLabel);
+        lNote.Lines.Add(lTrimmed.Substring(lBracket + 2).TrimStart);
+        var lBlankCount := 0;
+        while i < aLines.Count do begin
+          lLine := aLines[i];
+          if IsBlank(lLine) then begin
+            inc(lBlankCount);
+            inc(i);
+            continue;
+          end;
+
+          var lIndent := if lLine.StartsWith("    ") then 4 else if lLine.StartsWith(#9) then 1 else 0;
+          if lIndent = 0 then begin
+            var lHeading: String;
+            // A definition may start on the following line, as in Markdown Extra.
+            if (lBlankCount > 0) or (lNote.Lines.Count <> 1) or not IsBlank(lNote.Lines[0]) or
+               lLine.TrimStart.StartsWith("[^") or FenceInfo(lLine, out lMarker, out lInfo) or
+               (HeadingLevel(lLine, out lHeading) > 0) then
+              break;
+          end;
+
+          for lBlank := 1 to lBlankCount do
+            lNote.Lines.Add("");
+          lBlankCount := 0;
+          lNote.Lines.Add(lLine.Substring(lIndent));
+          inc(i);
+        end;
+        if not aFootnotes.Definitions.ContainsKey(lLabel) then
+          aFootnotes.Definitions[lLabel] := lNote;
+        result.Add("");
+      end;
+    end;
+
+    class method ReadDestination(aText: not nullable String; aStart: Integer; out aEnd: Integer): nullable String;
+    begin
+      aEnd := -1;
+      var lDepth := 0;
+      var lSegmentStart := aStart;
+      var lDecoded: nullable StringBuilder;
+      var i := aStart;
+      while i < aText.Length do begin
+        var lCharacter := aText[i];
+        if lCharacter.IsWhitespace then
+          exit nil;
+        if (lCharacter = #92) and (i + 1 < aText.Length) and (aText[i + 1] in ['(', ')', #92]) then begin
+          if not assigned(lDecoded) then
+            lDecoded := new StringBuilder;
+          lDecoded.Append(aText.Substring(lSegmentStart, i - lSegmentStart));
+          lDecoded.Append(aText[i + 1]);
+          inc(i, 2);
+          lSegmentStart := i;
+          continue;
+        end;
+        if lCharacter = '(' then
+          inc(lDepth)
+        else if lCharacter = ')' then begin
+          if lDepth = 0 then begin
+            aEnd := i;
+            var lTail := aText.Substring(lSegmentStart, i - lSegmentStart);
+            if not assigned(lDecoded) then
+              exit lTail;
+            lDecoded.Append(lTail);
+            exit lDecoded.ToString;
+          end;
+          dec(lDepth);
+        end;
+        inc(i);
+      end;
+      exit nil;
+    end;
+
+    class method IsAutolinkUrl(aUrl: not nullable String): Boolean;
+    begin
+      var lColon := aUrl.IndexOf(':');
+      if (lColon < 2) or (lColon > 32) or not IsAsciiLetter(aUrl[0]) then
+        exit false;
+      for i := 1 to lColon - 1 do
+        if not (IsAsciiLetter(aUrl[i]) or IsAsciiDigit(aUrl[i]) or (aUrl[i] in ['+', '-', '.'])) then
+          exit false;
+      for i := lColon + 1 to aUrl.Length - 1 do
+        if aUrl[i].IsWhitespace or (aUrl[i] in ['<', '>']) then
+          exit false;
+      result := true;
+    end;
+
+    class method RewriteDestination(aUrl: not nullable String; aOptions: not nullable MarkdownOptions): not nullable String;
+    begin
+      var lRewrite := aOptions.RewriteUrl;
+      if assigned(lRewrite) then
+        exit coalesce(lRewrite(aUrl), aUrl);
+      result := aUrl;
+    end;
+
+    class method &Inline(aText: not nullable String; aOptions: not nullable MarkdownOptions;
+      aFootnotes: nullable MarkdownFootnotes): not nullable String;
     begin
       var lOutput := new StringBuilder;
       var i := 0;
@@ -420,7 +700,13 @@ type
           var lEnd := aText.IndexOf('>', i + 1);
           if lEnd >= 0 then begin
             var lUrl := aText.Substring(i + 1, lEnd - i - 1);
-            if lUrl.Contains(":") then begin lOutput.Append("<a href="""); lOutput.Append(EscapeAttribute(lUrl)); lOutput.Append(""">"); lOutput.Append(EscapeText(lUrl)); lOutput.Append("</a>"); i := lEnd + 1; continue; end;
+            if IsAutolinkUrl(lUrl) then begin
+              lOutput.Append("<a href=""" + EscapeAttribute(RewriteDestination(lUrl, aOptions)) + """>");
+              lOutput.Append(EscapeText(lUrl));
+              lOutput.Append("</a>");
+              i := lEnd + 1;
+              continue;
+            end;
           end;
         end;
         if (aText[i] = '`') then begin
@@ -429,14 +715,14 @@ type
         end;
         if aOptions.EnableStrikethrough and (i + 1 < aText.Length) and (aText.Substring(i, 2) = "~~") then begin
           var lEnd := aText.IndexOf("~~", i + 2);
-          if lEnd >= 0 then begin lOutput.Append("<del>"); lOutput.Append(&Inline(aText.Substring(i + 2, lEnd - i - 2), aOptions)); lOutput.Append("</del>"); i := lEnd + 2; continue; end;
+          if lEnd >= 0 then begin lOutput.Append("<del>"); lOutput.Append(&Inline(aText.Substring(i + 2, lEnd - i - 2), aOptions, aFootnotes)); lOutput.Append("</del>"); i := lEnd + 2; continue; end;
         end;
         var lMarker := if (i + 1 < aText.Length) and ((aText.Substring(i, 2) = "**") or (aText.Substring(i, 2) = "__")) then aText.Substring(i, 2) else aText[i].ToString;
         if (lMarker = "*") or (lMarker = "_") or (lMarker = "**") or (lMarker = "__") then begin
           var lEnd := aText.IndexOf(lMarker, i + lMarker.Length);
           if lEnd >= 0 then begin
             lOutput.Append(if lMarker.Length = 2 then "<strong>" else "<em>");
-            lOutput.Append(&Inline(aText.Substring(i + lMarker.Length, lEnd - i - lMarker.Length), aOptions));
+            lOutput.Append(&Inline(aText.Substring(i + lMarker.Length, lEnd - i - lMarker.Length), aOptions, aFootnotes));
             lOutput.Append(if lMarker.Length = 2 then "</strong>" else "</em>");
             i := lEnd + lMarker.Length; continue;
           end;
@@ -444,15 +730,51 @@ type
         if (aText[i] = '!') and (i + 1 < aText.Length) and (aText[i + 1] = '[') then begin
           var lBracket := aText.IndexOf(']', i + 2);
           if (lBracket >= 0) and (lBracket + 1 < aText.Length) and (aText[lBracket + 1] = '(') then begin
-            var lEnd := aText.IndexOf(')', lBracket + 2);
-            if lEnd >= 0 then begin lOutput.Append("<img src="""); lOutput.Append(EscapeAttribute(aText.Substring(lBracket + 2, lEnd - lBracket - 2))); lOutput.Append(""" alt="""); lOutput.Append(EscapeAttribute(aText.Substring(i + 2, lBracket - i - 2))); lOutput.Append(""" />"); i := lEnd + 1; continue; end;
+            var lEnd: Integer;
+            var lDestination := ReadDestination(aText, lBracket + 2, out lEnd);
+            if assigned(lDestination) then begin
+              var lUrl := RewriteDestination(lDestination, aOptions);
+              lOutput.Append("<img src=""");
+              lOutput.Append(EscapeAttribute(lUrl));
+              lOutput.Append(""" alt=""");
+              lOutput.Append(EscapeAttribute(aText.Substring(i + 2, lBracket - i - 2)));
+              lOutput.Append(""" />");
+              i := lEnd + 1;
+              continue;
+            end;
           end;
         end;
         if aText[i] = '[' then begin
           var lBracket := aText.IndexOf(']', i + 1);
-          if (lBracket >= 0) and (lBracket + 1 < aText.Length) and (aText[lBracket + 1] = '(') then begin
-            var lEnd := aText.IndexOf(')', lBracket + 2);
-            if lEnd >= 0 then begin lOutput.Append("<a href="""); lOutput.Append(EscapeAttribute(aText.Substring(lBracket + 2, lEnd - lBracket - 2))); lOutput.Append(""">"); lOutput.Append(&Inline(aText.Substring(i + 1, lBracket - i - 1), aOptions)); lOutput.Append("</a>"); i := lEnd + 1; continue; end;
+          if (lBracket > i + 1) and (lBracket + 1 < aText.Length) and (aText[lBracket + 1] = '(') then begin
+            var lEnd: Integer;
+            var lDestination := ReadDestination(aText, lBracket + 2, out lEnd);
+            if assigned(lDestination) then begin
+              var lUrl := RewriteDestination(lDestination, aOptions);
+              lOutput.Append("<a href=""");
+              lOutput.Append(EscapeAttribute(lUrl));
+              lOutput.Append(""">");
+              lOutput.Append(&Inline(aText.Substring(i + 1, lBracket - i - 1), aOptions, nil));
+              lOutput.Append("</a>");
+              i := lEnd + 1;
+              continue;
+            end;
+          end;
+        end;
+        if assigned(aFootnotes) and (aText[i] = '[') then begin
+          var lEnd := aText.IndexOf(']', i + 1);
+          var lLabel := FootnoteLabel(aText, i, lEnd);
+          var lNote := if assigned(lLabel) then aFootnotes.Definitions[lLabel] else nil;
+          if assigned(lNote) then begin
+            if lNote.Number = 0 then begin
+              aFootnotes.Ordered.Add(lNote);
+              lNote.Number := aFootnotes.Ordered.Count;
+            end;
+            lNote.ReferenceCount := lNote.ReferenceCount + 1;
+            lOutput.Append("<sup id=""" + lNote.ReferenceId(lNote.ReferenceCount) + """><a href=""#fn:" +
+              lNote.LabelName + """ rel=""footnote"">" + lNote.Number.ToString + "</a></sup>");
+            i := lEnd + 1;
+            continue;
           end;
         end;
         AppendEscapedCharacter(lOutput, aText[i]); inc(i);
@@ -479,7 +801,7 @@ type
     end;
 
     class method RenderBulletList(aLines: not nullable List<String>; var aIndex: Integer;
-      aIndent: Integer; aOutput: not nullable StringBuilder; aOptions: not nullable MarkdownOptions);
+      aIndent: Integer; aOutput: not nullable StringBuilder; aOptions: not nullable MarkdownOptions; aFootnotes: nullable MarkdownFootnotes);
     begin
       aOutput.Append("<ul>" + #10);
       var lIndent: Integer;
@@ -494,25 +816,22 @@ type
         else begin
           aOutput.Append("<li>");
         end;
-        aOutput.Append(&Inline(lItem, aOptions));
+        aOutput.Append(&Inline(lItem, aOptions, aFootnotes));
         inc(aIndex);
 
         while (aIndex < aLines.Count) and BulletItem(aLines[aIndex], out lIndent, out lItem) and (lIndent >= lContentIndent) do begin
           aOutput.Append(#10);
-          RenderBulletList(aLines, var aIndex, lContentIndent, aOutput, aOptions);
+          RenderBulletList(aLines, var aIndex, lContentIndent, aOutput, aOptions, aFootnotes);
         end;
         aOutput.Append("</li>" + #10);
       end;
       aOutput.Append("</ul>" + #10);
     end;
 
-  public
-    class method Render(aSource: not nullable String; aOptions: not nullable MarkdownOptions): not nullable String;
+    class method RenderBlocks(lLines: not nullable List<String>; lOutput: not nullable StringBuilder;
+      aOptions: not nullable MarkdownOptions; aFootnotes: nullable MarkdownFootnotes;
+      lHeadings: not nullable Dictionary<String, Integer>; var lContainsMermaid: Boolean);
     begin
-      var lLines := Lines(aSource);
-      var lOutput := new StringBuilder;
-      var lHeadings := new Dictionary<String, Integer>;
-      var lContainsMermaid := false;
       var i := 0;
       while i < lLines.Count do begin
         if IsBlank(lLines[i]) then begin
@@ -556,11 +875,26 @@ type
           continue;
         end;
         var lHeadingText: String;
-        var lLevel := HeadingLevel(lLines[i], out lHeadingText);
+        var lLevel := HeadingLevel(lLines[i], out lHeadingText, aOptions.UseLegacyHeadingIds);
+        if (lLevel = 0) and aOptions.UseLegacyHeadingIds and (i + 1 < lLines.Count) and
+           not IsThematicBreak(lLines[i]) and not lLines[i][0].IsWhitespace and not (lLines[i][0] in ['<', '>']) then begin
+          var lIndent: Integer;
+          var lItem: String;
+          if not BulletItem(lLines[i], out lIndent, out lItem) then begin
+            lLevel := SetextHeadingLevel(lLines[i + 1]);
+            if lLevel > 0 then begin
+              lHeadingText := lLines[i].TrimEnd;
+              inc(i);
+            end;
+          end;
+        end;
         if lLevel > 0 then begin
           lOutput.Append("<h" + lLevel.ToString);
-          if aOptions.GenerateHeadingIds then lOutput.Append(" id=""" + Slug(lHeadingText, lHeadings) + """");
-          lOutput.Append(">" + &Inline(lHeadingText, aOptions) + "</h" + lLevel.ToString + ">" + #10); inc(i); continue;
+          if aOptions.GenerateHeadingIds then begin
+            var lId := if aOptions.UseLegacyHeadingIds then LegacyHeadingId(lHeadingText, lHeadings) else Slug(lHeadingText, lHeadings);
+            lOutput.Append(" id=""" + EscapeAttribute(lId) + """");
+          end;
+          lOutput.Append(">" + &Inline(lHeadingText, aOptions, aFootnotes) + "</h" + lLevel.ToString + ">" + #10); inc(i); continue;
         end;
         if IsThematicBreak(lLines[i]) then begin lOutput.Append("<hr />" + #10); inc(i); continue; end;
         var lQuoteContent: String;
@@ -582,30 +916,32 @@ type
           if assigned(lAlertKind) then
             lOutput.Append("<p class=""elements-markdown-alert-title""><strong>" + lAlertKind:Substring(0, 1):ToUpper + lAlertKind:Substring(1) + "</strong></p>" + #10);
           if lQuoteLines.Count > 0 then
-            lOutput.Append("<p>" + &Inline(lQuoteLines.JoinedString(#10), aOptions).Replace(String(#10), "<br />" + #10) + "</p>" + #10);
+            lOutput.Append("<p>" + &Inline(lQuoteLines.JoinedString(#10), aOptions, aFootnotes).Replace(String(#10), "<br />" + #10) + "</p>" + #10);
           lOutput.Append("</blockquote>" + #10);
           continue;
         end;
         if aOptions.EnableTables and (i + 1 < lLines.Count) and lLines[i].Contains("|") and IsTableDelimiter(lLines[i + 1]) then begin
           var lHeaders := TableCells(lLines[i]); var lAlignments := TableAlignments(lLines[i + 1]); lOutput.Append("<table><thead><tr>");
-          for each lCell in lHeaders index lCellIndex do lOutput.Append("<th" + TableAlignmentAttribute(lAlignments, lCellIndex) + ">" + &Inline(lCell, aOptions) + "</th>");
+          for each lCell in lHeaders index lCellIndex do lOutput.Append("<th" + TableAlignmentAttribute(lAlignments, lCellIndex) + ">" + &Inline(lCell, aOptions, aFootnotes) + "</th>");
           lOutput.Append("</tr></thead><tbody>" + #10); i := i + 2;
-          while (i < lLines.Count) and lLines[i].Contains("|") and not IsBlank(lLines[i]) do begin var lCells := TableCells(lLines[i]); lOutput.Append("<tr>"); for each lCell in lCells index lCellIndex do lOutput.Append("<td" + TableAlignmentAttribute(lAlignments, lCellIndex) + ">" + &Inline(lCell, aOptions) + "</td>"); lOutput.Append("</tr>" + #10); inc(i); end;
+          while (i < lLines.Count) and lLines[i].Contains("|") and not IsBlank(lLines[i]) do begin var lCells := TableCells(lLines[i]); lOutput.Append("<tr>"); for each lCell in lCells index lCellIndex do lOutput.Append("<td" + TableAlignmentAttribute(lAlignments, lCellIndex) + ">" + &Inline(lCell, aOptions, aFootnotes) + "</td>"); lOutput.Append("</tr>" + #10); inc(i); end;
           lOutput.Append("</tbody></table>" + #10); continue;
         end;
         var lBulletIndent: Integer;
         var lBulletText: String;
         if BulletItem(lLines[i], out lBulletIndent, out lBulletText) then begin
-          RenderBulletList(lLines, var i, 0, lOutput, aOptions);
+          RenderBulletList(lLines, var i, 0, lOutput, aOptions, aFootnotes);
           continue;
         end;
         var lParagraph := new StringBuilder;
         while (i < lLines.Count) and not IsBlank(lLines[i]) do begin
           if lParagraph.Length > 0 then begin
             var lInterruptHeadingText: String;
-            if HeadingLevel(lLines[i], out lInterruptHeadingText) > 0 then
+            if HeadingLevel(lLines[i], out lInterruptHeadingText, aOptions.UseLegacyHeadingIds) > 0 then
               break;
             if aOptions.AllowRawHtml and lLines[i]:TrimStart.StartsWith("<!--") then
+              break;
+            if aOptions.UseLegacyHeadingIds and FenceInfo(lLines[i], out lFenceMarker, out lFenceInfo) then
               break;
           end;
           if lParagraph.Length > 0 then
@@ -613,8 +949,55 @@ type
           lParagraph.Append(lLines[i]);
           inc(i);
         end;
-        lOutput.Append("<p>" + &Inline(lParagraph.ToString, aOptions).Replace(String(#10), "<br />" + #10) + "</p>" + #10);
+        lOutput.Append("<p>" + &Inline(lParagraph.ToString, aOptions, aFootnotes).Replace(String(#10), "<br />" + #10) + "</p>" + #10);
       end;
+    end;
+
+  public
+    class method Render(aSource: not nullable String; aOptions: not nullable MarkdownOptions): not nullable String;
+    begin
+      var lLines := Lines(aSource);
+      var lFootnotes := if aOptions.EnableFootnotes then new MarkdownFootnotes else nil;
+      if assigned(lFootnotes) then
+        lLines := CollectFootnotes(lLines, aOptions, lFootnotes);
+
+      var lOutput := new StringBuilder;
+      var lHeadings := new Dictionary<String, Integer>;
+      var lContainsMermaid := false;
+      RenderBlocks(lLines, lOutput, aOptions, lFootnotes, lHeadings, var lContainsMermaid);
+
+      if assigned(lFootnotes) and (lFootnotes.Ordered.Count > 0) then begin
+        var lBodies := new List<String>;
+        // Rendering a note may discover references to other notes.
+        while lBodies.Count < lFootnotes.Ordered.Count do begin
+          var lBody := new StringBuilder;
+          RenderBlocks(lFootnotes.Ordered[lBodies.Count].Lines, lBody, aOptions, lFootnotes, lHeadings, var lContainsMermaid);
+          lBodies.Add(lBody.ToString);
+        end;
+
+        lOutput.Append("<div class=""footnotes"">" + #10 + "<hr />" + #10 + "<ol>" + #10);
+        for each lNote in lFootnotes.Ordered index lIndex do begin
+          lOutput.Append("<li id=""fn:" + lNote.LabelName + """>" + #10);
+          var lBody := lBodies[lIndex];
+          var lEndsInParagraph := lBody.EndsWith("</p>" + #10);
+          if lEndsInParagraph then
+            lOutput.Append(lBody.Substring(0, lBody.Length - 5))
+          else begin
+            lOutput.Append(lBody);
+            lOutput.Append("<p>");
+          end;
+
+          for lOccurrence := 1 to lNote.ReferenceCount do begin
+            if lEndsInParagraph or (lOccurrence > 1) then
+              lOutput.Append("&nbsp;");
+            lOutput.Append("<a href=""#" + lNote.ReferenceId(lOccurrence) + """ rev=""footnote"" aria-label=""Back to reference " +
+              lNote.Number.ToString + (if lOccurrence > 1 then ", occurrence " + lOccurrence.ToString else "") + """>&#8617;</a>");
+          end;
+          lOutput.Append("</p>" + #10 + "</li>" + #10);
+        end;
+        lOutput.Append("</ol>" + #10 + "</div>" + #10);
+      end;
+
       if aOptions.IncludeMermaidRuntime and lContainsMermaid then begin
         lOutput.Append("<script>");
         lOutput.Append(Markdown.MermaidRuntimeJavaScript);

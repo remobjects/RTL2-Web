@@ -24,6 +24,116 @@ type
       Check.IsTrue(Markdown.ToHtml(lPath, lOptions).Contains(lPath));
     end;
 
+    method RendersFootnotesInReferenceOrderWithBacklinks;
+    begin
+      var lSource := "First[^second], then **again[^second]**, then [^first]." + #10 +
+        "[^first]: First definition." + #10 + "[^second]:" + #10 +
+        "A *formatted* note." + #10 + #10 + "    Another paragraph." + #10 +
+        "[^unused]: Unused note.";
+      var lHtml := Markdown.ToHtml(lSource);
+      Check.IsTrue(lHtml.Contains('<sup id="fnref:second"><a href="#fn:second" rel="footnote">1</a></sup>'));
+      Check.IsTrue(lHtml.Contains('<sup id="fnref:second:2">'));
+      Check.IsTrue(lHtml.Contains('<a href="#fn:first" rel="footnote">2</a>'));
+      Check.IsTrue(lHtml.IndexOf('<li id="fn:second">') < lHtml.IndexOf('<li id="fn:first">'));
+      Check.IsTrue(lHtml.Contains('<p>A <em>formatted</em> note.</p>'));
+      Check.IsTrue(lHtml.Contains('<p>Another paragraph.&nbsp;<a href="#fnref:second"'));
+      Check.IsTrue(lHtml.Contains('<a href="#fnref:second:2"'));
+      Check.IsFalse(lHtml.Contains('Unused note.'));
+    end;
+
+    method KeepsFootnoteSyntaxLiteralInCodeAndCommonMark;
+    begin
+      var lSource := "A reference[^note], `[^note]`, " + Char(92).ToString + "[^note], and [^missing]." + #10 +
+        "[^note]: Real note." + #10 + #10 +
+        "```text" + #10 + "[^hidden]: Fenced text." + #10 + "```" + #10 + #10 +
+        "[^hidden]";
+      var lHtml := Markdown.ToHtml(lSource, MarkdownOptions.GitHub);
+      Check.IsTrue(lHtml.Contains('<code>[^note]</code>, [^note], and [^missing].'));
+      Check.IsTrue(lHtml.Contains('[^hidden]: Fenced text.'));
+      Check.IsTrue(lHtml.Contains('<p>[^hidden]</p>'));
+      Check.IsFalse(lHtml.Contains('id="fnref:note:2"'));
+      lHtml := Markdown.ToHtml(lSource, MarkdownOptions.CommonMark);
+      Check.IsTrue(lHtml.Contains('reference[^note]'));
+      Check.IsTrue(lHtml.Contains('[^note]: Real note.'));
+      Check.IsFalse(lHtml.Contains('class="footnotes"'));
+    end;
+
+    method RewritesMarkdownDestinationsBeforeEscaping;
+    begin
+      var lOptions := new MarkdownOptions;
+      lOptions.RewriteUrl := aUrl -> case aUrl of
+        'Navigation.md': '../Fire/Navigation/index.html#intro';
+        'diagram.png': 'assets/diagram.png?x=1&y="2"';
+        'https://example.test': '';
+        else nil;
+      end;
+      var lHtml := Markdown.ToHtml('[Navigation](Navigation.md) ![Diagram](diagram.png) ' +
+        '<https://example.test> [Keep](#section) `[Literal](Navigation.md)`', lOptions);
+      Check.IsTrue(lHtml.Contains('<a href="../Fire/Navigation/index.html#intro">Navigation</a>'));
+      Check.IsTrue(lHtml.Contains('<img src="assets/diagram.png?x=1&amp;y=&quot;2&quot;" alt="Diagram"'));
+      Check.IsTrue(lHtml.Contains('<a href="">https://example.test</a>'));
+      Check.IsTrue(lHtml.Contains('<a href="#section">Keep</a>'));
+      Check.IsTrue(lHtml.Contains('<code>[Literal](Navigation.md)</code>'));
+    end;
+
+    method ReadsBalancedParenthesesInMarkdownDestinations;
+    begin
+      var lOptions := new MarkdownOptions;
+      lOptions.RewriteUrl := aUrl -> 'resolved/' + aUrl;
+      var lHtml := Markdown.ToHtml('[Interface](Interface(go.sort(nested))#intro) ' +
+        '![Diagram](diagram(v2).png) [Escaped](name\).html)', lOptions);
+      Check.AreEqual(lHtml, '<p><a href="resolved/Interface(go.sort(nested))#intro">Interface</a> ' +
+        '<img src="resolved/diagram(v2).png" alt="Diagram" /> ' +
+        '<a href="resolved/name).html">Escaped</a></p>' + #10);
+      Check.AreEqual(Markdown.ToHtml('[Unclosed](Interface(go.sort)', lOptions),
+        '<p>[Unclosed](Interface(go.sort)</p>' + #10);
+    end;
+
+    method LeavesCodeLikeTextAndBareDestinationsWithSpacesLiteral;
+    begin
+      var lOptions := new MarkdownOptions;
+      lOptions.RewriteUrl := aUrl -> 'rewritten/' + aUrl;
+      var lHtml := Markdown.ToHtml('String[](10) String[](count: 5) [String](count: 5) ' +
+        '<JNIExport(ClassName := "MainActivity")> [Path](/Visual Studio) ![Image](my diagram.png) ' +
+        '<https://example.test/a> ![](diagram.png)', lOptions);
+      Check.IsTrue(lHtml.Contains('String[](10) String[](count: 5) [String](count: 5)'));
+      Check.IsTrue(lHtml.Contains('&lt;JNIExport(ClassName := "MainActivity")&gt;'));
+      Check.IsTrue(lHtml.Contains('[Path](/Visual Studio) ![Image](my diagram.png)'));
+      Check.IsTrue(lHtml.Contains('<a href="rewritten/https://example.test/a">'));
+      Check.IsTrue(lHtml.Contains('<img src="rewritten/diagram.png" alt="" />'));
+    end;
+
+    method PreservesPublishedHeadingIdsInLegacyMode;
+    begin
+      var lOptions := new MarkdownOptions;
+      lOptions.UseLegacyHeadingIds := true;
+      var lHtml := Markdown.ToHtml('## Pre- and Post-Conditions' + #10 +
+        '## Co- and Contra-Variance' + #10 + '## `for each from` Shortcut Syntax' + #10 +
+        '## A' + #10 + '## A-1' + #10 + '## A', lOptions);
+      Check.IsTrue(lHtml.Contains('<h2 id="pre--and-post-conditions">'));
+      Check.IsTrue(lHtml.Contains('<h2 id="co--and-contra-variance">'));
+      Check.IsTrue(lHtml.Contains('<h2 id="shortcut-syntax"><code>for each from</code> Shortcut Syntax'));
+      Check.IsTrue(lHtml.Contains('<h2 id="a-2">A</h2>'));
+      Check.IsTrue(Markdown.ToHtml('## Pre- and Post-Conditions').Contains('<h2 id="pre-and-post-conditions">'));
+    end;
+
+    method PreservesLegacyHeadingSyntaxAndInlineIds;
+    begin
+      var lOptions := new MarkdownOptions;
+      lOptions.UseLegacyHeadingIds := true;
+      var lHtml := Markdown.ToHtml('Prerequisites and Emulators' + #10 + '---' + #10 +
+        '###Use case' + #10 + '## HttpResponseContent&lt;T&gt;' + #10 +
+        '## Aspects Get _Implemented_ in .NET Only' + #10 +
+        '<div>' + #10 + '```pascal' + #10 + '#if COOPER' + #10 + '```' + #10 +
+        '## After the example', lOptions);
+      Check.IsTrue(lHtml.Contains('<h2 id="prerequisites-and-emulators">'));
+      Check.IsTrue(lHtml.Contains('<h3 id="use-case">'));
+      Check.IsTrue(lHtml.Contains('<h2 id="httpresponsecontentt">'));
+      Check.IsTrue(lHtml.Contains('<h2 id="aspects-get-implemented-in-.net-only">'));
+      Check.IsTrue(lHtml.Contains('<pre><code class="language-pascal">#if COOPER</code></pre>'));
+      Check.IsTrue(lHtml.Contains('<h2 id="after-the-example">'));
+    end;
+
     method RendersCommonBlocksAndExtensions;
     begin
       var lHtml := Markdown.ToHtml("# Heading" + #10 + #10 + "A **strong** and ~~deleted~~ [link](https://example.test)." + #10 + #10 + "- [x] done" + #10 + "- [ ] open" + #10 + #10 + "| A | B |" + #10 + "| - | - |" + #10 + "| 1 | 2 |");
