@@ -24,6 +24,14 @@ type
       Check.IsTrue(Markdown.ToHtml(lPath, lOptions).Contains(lPath));
     end;
 
+    method RendersCharacterReferencesInTextAndKeepsCodeLiteral;
+    begin
+      var lHtml := Markdown.ToHtml('&quot;Island&quot; &ndash; &#169; &#x2013; &unknown; A & B ' +
+        '`&ndash;` ' + Char(92).ToString + '&quot;');
+      Check.IsTrue(lHtml.Contains('&quot;Island&quot; &ndash; &#169; &#x2013;'));
+      Check.IsTrue(lHtml.Contains('&amp;unknown; A &amp; B <code>&amp;ndash;</code> &amp;quot;'));
+    end;
+
     method RendersFootnotesInReferenceOrderWithBacklinks;
     begin
       var lSource := "First[^second], then **again[^second]**, then [^first]." + #10 +
