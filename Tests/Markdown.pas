@@ -8,6 +8,46 @@ uses
 type
   MarkdownTests = public class(Test)
   public
+    method MatchesCodeDelimiterLengths;
+    begin
+      var lHtml := Markdown.ToHtml('````text' + #10 + '**literal**' + #10 + '```' + #10 +
+        '**still literal**' + #10 + '````' + #10 + '**outside**');
+      Check.IsTrue(lHtml.Contains('<code class="language-text">**literal**' + #10 + '```' + #10 + '**still literal**</code>'));
+      Check.IsTrue(lHtml.Contains('<strong>outside</strong>'));
+      Check.IsTrue(Markdown.ToHtml('``a`b``').Contains('<code>a`b</code>'));
+      Check.IsTrue(Markdown.ToHtml('``unmatched`').Contains('``unmatched`'));
+      Check.IsTrue(Markdown.ToHtml('~~~' + #10 + '```' + #10 + '~~~').Contains('<code>```</code>'));
+      Check.IsTrue(Markdown.ToHtml('```' + #10 + '```text' + #10 + '```').Contains('<code>```text</code>'));
+    end;
+
+    method RendersQuotedTasksAndFollowingList;
+    begin
+      var lHtml := Markdown.ToHtml('Intro' + #10 + '> - [X] quoted **task**' + #10 + '- [x] outside' + #10 + #10 + '- [ ] later');
+      Check.IsTrue(lHtml.Contains('<p>Intro</p>' + #10 + '<blockquote>' + #10 + '<ul>'));
+      Check.IsTrue(lHtml.Contains('checked /> quoted <strong>task</strong>'));
+      Check.IsTrue(lHtml.Contains('</blockquote>' + #10 + '<ul>' + #10 + '<li class="task-list-item"><input type="checkbox" disabled checked /> outside'));
+      Check.IsTrue(lHtml.Contains('disabled /> later'));
+    end;
+
+    method KeepsEscapesUnmatchedAndIntrawordUnderscoresLiteral;
+    begin
+      var lHtml := Markdown.ToHtml('***both*** and ___both___.' + #10 +
+        'Literal: snake_case_, '+Char(92)+'*escaped'+Char(92)+'*, and *unmatched.');
+      Check.IsTrue(lHtml.Contains('<em><strong>both</strong></em> and <em><strong>both</strong></em>.'));
+      Check.IsTrue(lHtml.Contains('Literal: snake_case_, *escaped*, and *unmatched.'));
+      Check.IsTrue(Markdown.ToHtml('*open '+Char(92)+'*').Contains('*open *'));
+      Check.IsTrue(Markdown.ToHtml('*a `*` b*').Contains('<em>a <code>*</code> b</em>'));
+    end;
+
+    method PreservesLiteralPipesInTableCells;
+    begin
+      var lHtml := Markdown.ToHtml('| Label | Value |' + #10 + '| :--- | ---: |' + #10 +
+        '| *italic* | `a|b` and a'+Char(92)+'|b |');
+      Check.IsTrue(lHtml.Contains('<td style="text-align: left;"><em>italic</em></td>'));
+      Check.IsTrue(lHtml.Contains('<code>a|b</code> and a|b</td>'));
+      Check.AreEqual(2, lHtml.Split('<td').Count - 1);
+    end;
+
     method RendersEscapedPunctuationLiterally;
     begin
       var lSlash := Char(92).ToString;

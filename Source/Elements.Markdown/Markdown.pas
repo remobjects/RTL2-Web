@@ -539,8 +539,25 @@ type
       var lCount := 0;
       while (lCount < lTrimmed.Length) and (lTrimmed[lCount] = aMarker) do inc(lCount);
       if lCount < 3 then exit false;
+      if aLine.Length - aLine.TrimStart.Length > 3 then exit false;
+      if (aMarker = '`') and lTrimmed.Substring(lCount).Contains('`') then exit false;
       aInfo := lTrimmed.Substring(lCount):Trim;
       result := true;
+    end;
+
+    class method FenceLength(aLine: not nullable String): Integer;
+    begin
+      var lText := aLine.TrimStart;
+      result := 0;
+      while (result < lText.Length) and (lText[result] = lText[0]) do inc(result);
+    end;
+
+    class method ClosesFence(aLine: not nullable String; aMarker: Char; aLength: Integer): Boolean;
+    begin
+      var lText := aLine.TrimStart;
+      var lCount := FenceLength(aLine);
+      result := (lCount >= aLength) and (lText[0] = aMarker) and
+        (lText.Substring(lCount):Trim.Length = 0) and (aLine.Length - lText.Length <= 3);
     end;
 
     class method IsTableDelimiter(aLine: not nullable String): Boolean;
@@ -563,11 +580,36 @@ type
 
     class method TableCells(aLine: not nullable String): not nullable List<String>;
     begin
-      var lValue := aLine:Trim;
-      if lValue.StartsWith("|") then lValue := lValue.Substring(1);
-      if lValue.EndsWith("|") then lValue := lValue.Substring(0, lValue.Length - 1);
+      var lValue := aLine.Trim;
       result := new List<String>;
-      for each lCell in lValue.Split('|') do result.Add(lCell:Trim);
+      var lCell := new StringBuilder;
+      var i := if lValue.StartsWith('|') then 1 else 0;
+      while i < lValue.Length do begin
+        if (lValue[i] = Char(92)) and (i + 1 < lValue.Length) then begin
+          // Preserve escapes for inline rendering, including escaped cell pipes.
+          lCell.Append(lValue.Substring(i, 2));
+          inc(i, 2);
+          continue;
+        end;
+        if lValue[i] = '`' then begin
+          var lAfter := DelimiterEnd(lValue, i);
+          var lClose := CodeEnd(lValue, lAfter, lAfter - i);
+          if lClose >= 0 then begin
+            var lEnd := lClose + lAfter - i;
+            lCell.Append(lValue.Substring(i, lEnd - i));
+            i := lEnd;
+            continue;
+          end;
+        end;
+        if lValue[i] = '|' then begin
+          result.Add((lCell.ToString as String).Trim);
+          lCell := new StringBuilder;
+        end
+        else lCell.Append(lValue[i]);
+        inc(i);
+      end;
+      if (lCell.Length > 0) or not lValue.EndsWith('|') then
+        result.Add((lCell.ToString as String).Trim);
     end;
 
     class method TableAlignments(aLine: not nullable String): not nullable List<String>;
@@ -750,6 +792,7 @@ type
     begin
       result := new List<String>;
       var lFence := Char(0);
+      var lFenceLength := 0;
       var lInComment := false;
       var i := 0;
       while i < aLines.Count do begin
@@ -759,9 +802,11 @@ type
         var lMarker: Char;
         var lInfo: String;
         if not lInComment and FenceInfo(lLine, out lMarker, out lInfo) then begin
-          if lFence = #0 then
-            lFence := lMarker
-          else if lFence = lMarker then
+          if lFence = #0 then begin
+            lFence := lMarker;
+            lFenceLength := FenceLength(lLine);
+          end
+          else if ClosesFence(lLine, lFence, lFenceLength) then
             lFence := #0;
           result.Add(lLine);
           continue;
@@ -876,6 +921,67 @@ type
       result := aUrl;
     end;
 
+    class method DelimiterEnd(aText: not nullable String; aStart: Integer): Integer;
+    begin
+      result := aStart + 1;
+      while (result < aText.Length) and (aText[result] = aText[aStart]) do inc(result);
+    end;
+
+    class method CodeEnd(aText: not nullable String; aStart: Integer; aWidth: Integer): Integer;
+    begin
+      var i := aStart;
+      while i < aText.Length do begin
+        if aText[i] = '`' then begin
+          var lEnd := DelimiterEnd(aText, i);
+          if lEnd - i = aWidth then exit i;
+          i := lEnd;
+        end
+        else inc(i);
+      end;
+      exit -1;
+    end;
+
+    class method IsPunctuation(aChar: Char): Boolean;
+    begin
+      result := not aChar.IsLetterOrNumber and not aChar.IsWhitespace;
+    end;
+
+    class method CanEmphasize(aText: not nullable String; aStart: Integer; aEnd: Integer; aOpening: Boolean): Boolean;
+    begin
+      var lLeft := if aStart = 0 then ' ' else aText[aStart - 1];
+      var lRight := if aEnd = aText.Length then ' ' else aText[aEnd];
+      var lOpens := not lRight.IsWhitespace and (not IsPunctuation(lRight) or lLeft.IsWhitespace or IsPunctuation(lLeft));
+      var lCloses := not lLeft.IsWhitespace and (not IsPunctuation(lLeft) or lRight.IsWhitespace or IsPunctuation(lRight));
+      if aOpening then
+        exit lOpens and ((aText[aStart] = '*') or not lCloses or IsPunctuation(lLeft));
+      result := lCloses and ((aText[aStart] = '*') or not lOpens or IsPunctuation(lRight));
+    end;
+
+    class method EmphasisEnd(aText: not nullable String; aStart: Integer; aWidth: Integer): Integer;
+    begin
+      var i := aStart + aWidth;
+      while i < aText.Length do begin
+        if (aText[i] = Char(92)) and (i + 1 < aText.Length) and
+          (aText[i + 1] in [#33..#47, #58..#64, #91..#96, #123..#126]) then begin
+          inc(i, 2);
+          continue;
+        end;
+        if aText[i] = '`' then begin
+          var lAfter := DelimiterEnd(aText, i);
+          var lCodeEnd := CodeEnd(aText, lAfter, lAfter - i);
+          i := if lCodeEnd >= 0 then lCodeEnd + lAfter - i else lAfter;
+          continue;
+        end;
+        if aText[i] = aText[aStart] then begin
+          var lEnd := DelimiterEnd(aText, i);
+          if (lEnd - i = aWidth) and (i > aStart + aWidth) and CanEmphasize(aText, i, lEnd, false) then exit i;
+          i := lEnd;
+        end
+        else inc(i);
+      end;
+      exit -1;
+    end;
+
     class method &Inline(aText: not nullable String; aOptions: not nullable MarkdownOptions;
       aFootnotes: nullable MarkdownFootnotes): not nullable String;
     begin
@@ -911,23 +1017,41 @@ type
             end;
           end;
         end;
-        if (aText[i] = '`') then begin
-          var lEnd := aText.IndexOf('`', i + 1);
-          if lEnd >= 0 then begin lOutput.Append("<code>"); lOutput.Append(EscapeText(aText.Substring(i + 1, lEnd - i - 1))); lOutput.Append("</code>"); i := lEnd + 1; continue; end;
+        if aText[i] = '`' then begin
+          var lAfter := DelimiterEnd(aText, i);
+          var lEnd := CodeEnd(aText, lAfter, lAfter - i);
+          if lEnd >= 0 then begin
+            var lCode := aText.Substring(lAfter, lEnd - lAfter).Replace(String(#10), ' ');
+            if lCode.StartsWith(' ') and lCode.EndsWith(' ') and (lCode.Trim.Length > 0) then
+              lCode := lCode.Substring(1, lCode.Length - 2);
+            lOutput.Append('<code>' + EscapeText(lCode) + '</code>');
+            i := lEnd + lAfter - i;
+          end
+          else begin
+            lOutput.Append(aText.Substring(i, lAfter - i));
+            i := lAfter;
+          end;
+          continue;
         end;
         if aOptions.EnableStrikethrough and (i + 1 < aText.Length) and (aText.Substring(i, 2) = "~~") then begin
           var lEnd := aText.IndexOf("~~", i + 2);
           if lEnd >= 0 then begin lOutput.Append("<del>"); lOutput.Append(&Inline(aText.Substring(i + 2, lEnd - i - 2), aOptions, aFootnotes)); lOutput.Append("</del>"); i := lEnd + 2; continue; end;
         end;
-        var lMarker := if (i + 1 < aText.Length) and ((aText.Substring(i, 2) = "**") or (aText.Substring(i, 2) = "__")) then aText.Substring(i, 2) else aText[i].ToString;
-        if (lMarker = "*") or (lMarker = "_") or (lMarker = "**") or (lMarker = "__") then begin
-          var lEnd := aText.IndexOf(lMarker, i + lMarker.Length);
+        if aText[i] in ['*', '_'] then begin
+          var lAfter := DelimiterEnd(aText, i);
+          var lWidth := lAfter - i;
+          var lEnd := if (lWidth <= 3) and CanEmphasize(aText, i, lAfter, true) then EmphasisEnd(aText, i, lWidth) else -1;
           if lEnd >= 0 then begin
-            lOutput.Append(if lMarker.Length = 2 then "<strong>" else "<em>");
-            lOutput.Append(&Inline(aText.Substring(i + lMarker.Length, lEnd - i - lMarker.Length), aOptions, aFootnotes));
-            lOutput.Append(if lMarker.Length = 2 then "</strong>" else "</em>");
-            i := lEnd + lMarker.Length; continue;
+            var lOpen := case lWidth of 1: '<em>'; 2: '<strong>'; else '<em><strong>'; end;
+            var lClose := case lWidth of 1: '</em>'; 2: '</strong>'; else '</strong></em>'; end;
+            lOutput.Append(lOpen + &Inline(aText.Substring(lAfter, lEnd - lAfter), aOptions, aFootnotes) + lClose);
+            i := lEnd + lWidth;
+          end
+          else begin
+            lOutput.Append(aText.Substring(i, lWidth));
+            i := lAfter;
           end;
+          continue;
         end;
         if (aText[i] = '!') and (i + 1 < aText.Length) and (aText[i + 1] = '[') then begin
           var lBracket := aText.IndexOf(']', i + 2);
@@ -1064,12 +1188,11 @@ type
         var lFenceMarker: Char;
         var lFenceInfo: String;
         if FenceInfo(lLines[i], out lFenceMarker, out lFenceInfo) then begin
+          var lOpeningLength := FenceLength(lLines[i]);
           inc(i);
           var lCode := new StringBuilder;
           while i < lLines.Count do begin
-            var lCloseMarker: Char;
-            var lCloseInfo: String;
-            if FenceInfo(lLines[i], out lCloseMarker, out lCloseInfo) and (lCloseMarker = lFenceMarker) then
+            if ClosesFence(lLines[i], lFenceMarker, lOpeningLength) then
               break;
 
             if lCode.Length > 0 then
@@ -1126,7 +1249,7 @@ type
           if assigned(lAlertKind) then
             lOutput.Append("<p class=""elements-markdown-alert-title""><strong>" + lAlertKind:Substring(0, 1):ToUpper + lAlertKind:Substring(1) + "</strong></p>" + #10);
           if lQuoteLines.Count > 0 then
-            lOutput.Append("<p>" + &Inline(lQuoteLines.JoinedString(#10), aOptions, aFootnotes).Replace(String(#10), "<br />" + #10) + "</p>" + #10);
+            RenderBlocks(lQuoteLines, lOutput, aOptions, aFootnotes, lHeadings, var lContainsMermaid);
           lOutput.Append("</blockquote>" + #10);
           continue;
         end;
@@ -1151,7 +1274,12 @@ type
               break;
             if aOptions.AllowRawHtml and lLines[i]:TrimStart.StartsWith("<!--") then
               break;
-            if aOptions.UseLegacyHeadingIds and FenceInfo(lLines[i], out lFenceMarker, out lFenceInfo) then
+            var lInterruptIndent: Integer;
+            var lInterruptText: String;
+            if QuoteContent(lLines[i], out lInterruptText) or
+              BulletItem(lLines[i], out lInterruptIndent, out lInterruptText) then
+              break;
+            if FenceInfo(lLines[i], out lFenceMarker, out lFenceInfo) then
               break;
           end;
           if lParagraph.Length > 0 then
