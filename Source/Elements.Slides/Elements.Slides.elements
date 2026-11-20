@@ -1,0 +1,34 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build" ToolsVersion="4.0">
+  <PropertyGroup>
+    <RootNamespace>RemObjects.Elements.Slides</RootNamespace>
+    <ProjectGuid>{686B560B-6594-4689-A42B-3153BBE57547}</ProjectGuid>
+    <AssemblyName>ElementsSlides</AssemblyName>
+    <BinaryName>ElementsSlides</BinaryName>
+    <OutputType>StaticLibrary</OutputType>
+    <Mode>Toffee</Mode>
+    <SDK>macOS</SDK>
+    <DeploymentTargetVersion>26.0</DeploymentTargetVersion>
+    <DefaultUses>Foundation;RemObjects.Elements.RTL</DefaultUses>
+    <OutputPath>Bin\$(Configuration)</OutputPath>
+    <OutputPathUsesSDKNames>True</OutputPathUsesSDKNames>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Foundation" />
+    <Reference Include="libToffee">
+      <HintPath>..\..\..\libToffee\Source\bin\Debug\macOS\libToffee.fx</HintPath>
+    </Reference>
+    <Reference Include="libElements">
+      <HintPath>..\..\..\RTL2\Bin\Toffee\macOS\libElements.fx</HintPath>
+    </Reference>
+    <Reference Include="libRemObjects.InternetPack">
+      <HintPath>..\..\..\internetpack\Bin\Debug\Toffee\macOS\macOS\libRemObjects.InternetPack.fx</HintPath>
+    </Reference>
+    <Reference Include="libElementsMarkdown">
+      <HintPath>..\Elements.Markdown\Bin\Debug\macOS\libElementsMarkdown.fx</HintPath>
+    </Reference>
+    <Compile Include="SlideDeck.pas" />
+    <Compile Include="SlideFiles.pas" />
+    <Compile Include="SlideHost.pas" />
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath)\RemObjects Software\Elements\RemObjects.Elements.Toffee.targets" />
+</Project>

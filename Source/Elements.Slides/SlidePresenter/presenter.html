@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slides</title>
+  <link rel="stylesheet" href="https://use.typekit.net/nbz6fkz.css">
+  <link rel="stylesheet" href="highlight-vs.css">
+  <link rel="stylesheet" href="slides.css">
+  <script src="highlight.pack.js"></script>
+  <script type="module" src="slides.js"></script>
+</head>
+<body>
+  <main class="stage" aria-label="Presentation">
+    <div class="frame">
+      <div id="slide" class="slide"></div>
+    </div>
+    <aside id="presenter-panel" hidden>
+      <section aria-labelledby="upcoming-title" hidden>
+        <h2 id="upcoming-title" aria-live="polite">Next Slide</h2>
+        <div class="frame"><div id="upcoming" class="slide"></div></div>
+      </section>
+      <section aria-label="Speaker notes">
+        <h2>Speaker notes</h2>
+        <div id="notes"></div>
+      </section>
+      <section class="timers" aria-label="Timing" hidden>
+        <div class="timer" data-timer="deck" role="group" aria-labelledby="deck-timer-title">
+          <h2 id="deck-timer-title">Presentation timer</h2>
+          <output class="timer-elapsed" aria-live="off">0:00 elapsed</output>
+          <output class="timer-remaining" aria-live="off" hidden></output>
+          <button type="button">Reset presentation timer</button>
+        </div>
+        <div class="timer" data-timer="slide" role="group" aria-labelledby="slide-timer-title">
+          <h2 id="slide-timer-title">Slide timer</h2>
+          <output class="timer-elapsed" aria-live="off">0:00 elapsed</output>
+          <output class="timer-remaining" aria-live="off" hidden></output>
+          <button type="button">Reset slide timer</button>
+        </div>
+      </section>
+    </aside>
+  </main>
+  <dialog id="overview" aria-labelledby="overview-title">
+    <form method="dialog"><button type="submit">Close</button></form>
+    <h2 id="overview-title">Slide overview</h2>
+    <ol id="slide-list"></ol>
+  </dialog>
+  <div id="status" role="status"></div>
+  <nav aria-label="Slide controls" hidden>
+    <button id="previous" type="button" aria-label="Previous slide" title="Previous slide (←)">&#8592;</button>
+    <output id="position" aria-live="polite"></output>
+    <button id="next" type="button" aria-label="Next slide" title="Next slide (→)">&#8594;</button>
+    <button id="browse" type="button" title="Slide overview (O)">Overview</button>
+    <button id="present" type="button" title="Open Presentation View (P)">Presentation View</button>
+  </nav>
+</body>
+</html>

@@ -1,0 +1,3 @@
+include("$(Train)/CI2Test.train");
+
+afterRun("SlidesTests.xml", "Elements.Slides");

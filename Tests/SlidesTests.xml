@@ -1,0 +1,10 @@
+<Afterhours>
+  <Modules>
+    <Module>
+      <Name>Elements.Slides</Name>
+      <Runner>EUnitRunner</Runner>
+      <Parameters>/run:./Slides/SlidesTests.elements /root:./Slides</Parameters>
+      <MaxTime>600</MaxTime>
+    </Module>
+  </Modules>
+</Afterhours>

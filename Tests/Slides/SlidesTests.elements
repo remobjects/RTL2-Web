@@ -1,0 +1,26 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <PropertyGroup>
+    <ProjectGuid>{60475277-BA2F-4963-9D71-1B3384B545FC}</ProjectGuid>
+    <AssemblyName>SlidesTests</AssemblyName>
+    <OutputType>Executable</OutputType>
+    <Mode>Toffee</Mode>
+    <SDK>macOS</SDK>
+    <DefaultUses>Foundation;RemObjects.Elements.RTL</DefaultUses>
+    <OutputPath>Bin\$(Configuration)</OutputPath>
+    <OutputPathUsesSDKNames>True</OutputPathUsesSDKNames>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Foundation" />
+    <Reference Include="libToffee"><HintPath>..\..\..\libToffee\Source\bin\Debug\macOS\libToffee.fx</HintPath></Reference>
+    <Reference Include="libElements"><HintPath>..\..\..\RTL2\Bin\Toffee\macOS\libElements.fx</HintPath></Reference>
+    <Reference Include="libEUnit" />
+    <Reference Include="libRemObjects.InternetPack"><HintPath>..\..\..\internetpack\Bin\Debug\Toffee\macOS\macOS\libRemObjects.InternetPack.fx</HintPath></Reference>
+    <Reference Include="libElementsMarkdown"><HintPath>..\..\Source\Elements.Markdown\Bin\Debug\macOS\libElementsMarkdown.fx</HintPath></Reference>
+    <ProjectReference Include="..\..\Source\Elements.Slides\Elements.Slides.elements">
+      <Project>{686B560B-6594-4689-A42B-3153BBE57547}</Project>
+      <ProjectFile>..\..\Source\Elements.Slides\Elements.Slides.elements</ProjectFile>
+    </ProjectReference>
+    <Compile Include="SlidesTests.pas" />
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath)\RemObjects Software\Elements\RemObjects.Elements.Toffee.targets" />
+</Project>
